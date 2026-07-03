@@ -338,7 +338,9 @@ Send a message to a workspace and receive a complete (non-streaming) response. S
 <ResponseField name="id" type="string">Unique ID of the chat exchange.</ResponseField>
 <ResponseField name="type" type="string">`"textResponse"` on success or `"abort"` on failure.</ResponseField>
 <ResponseField name="textResponse" type="string">The LLM's response text.</ResponseField>
-<ResponseField name="sources" type="array">Array of source document chunks used to generate the answer.</ResponseField>
+<ResponseField name="sources" type="array">
+  Array of source document chunks used to generate the answer. Each item contains a `title` (document filename) and a `chunk` (the relevant text snippet).
+</ResponseField>
 <ResponseField name="close" type="boolean">Always `true` for non-streaming responses.</ResponseField>
 <ResponseField name="error" type="string | null">`null` on success, or a description of the failure.</ResponseField>
 
@@ -376,7 +378,7 @@ The response `Content-Type` is `text/event-stream`. Each `data:` line contains a
 <ResponseField name="id" type="string">Shared ID for all chunks in this response.</ResponseField>
 <ResponseField name="type" type="string">`"textResponseChunk"` for content or `"abort"` on error.</ResponseField>
 <ResponseField name="textResponse" type="string">Text fragment for this chunk.</ResponseField>
-<ResponseField name="sources" type="array">Populated only in the final chunk (`close: true`).</ResponseField>
+<ResponseField name="sources" type="array">Populated only in the final chunk (`close: true`). Each item contains a `title` and `chunk` field.</ResponseField>
 <ResponseField name="close" type="boolean">`true` signals the end of the stream.</ResponseField>
 <ResponseField name="error" type="string | null">Error string or `null`.</ResponseField>
 
@@ -476,6 +478,8 @@ Create a new thread inside a workspace.
   </Expandable>
 </ResponseField>
 
+<ResponseField name="message" type="string | null">`null` on success or an error description.</ResponseField>
+
 ```bash
 curl -X POST https://your-instance.com/api/v1/workspace/product-docs/thread/new \
   -H "Authorization: Bearer YOUR_API_KEY" \
@@ -497,6 +501,11 @@ Update the display name of an existing thread.
 #### Body Parameters
 
 <ParamField body="name" type="string" required>New display name for the thread.</ParamField>
+
+#### Response Fields
+
+<ResponseField name="thread" type="object">Updated thread object with `id`, `name`, `slug`, `user_id`, and `workspace_id`.</ResponseField>
+<ResponseField name="message" type="string | null">`null` on success or an error description.</ResponseField>
 
 ```bash
 curl -X POST https://your-instance.com/api/v1/workspace/product-docs/thread/release-q3-discussion/update \

@@ -123,7 +123,7 @@ If a user forgets their password, an admin can reset it from **Settings → User
 
 For teams with an existing identity provider, AnythingLLM supports a **Simple SSO** mechanism that lets an external system log users in via a short-lived token.
 
-Enable it by setting the `SIMPLE_SSO_ENABLED` environment variable. Once enabled, your identity provider can call the `/api/v1/users/issue-auth-token` API endpoint (with a valid API key) to obtain a temporary login URL for a user:
+Enable it by setting the `SIMPLE_SSO_ENABLED` environment variable. Once enabled, your identity provider can call the `/api/v1/users/:id/issue-auth-token` API endpoint (with a valid API key) to obtain a temporary login URL for a user:
 
 ```bash
 # Issue a temporary token for user ID 42

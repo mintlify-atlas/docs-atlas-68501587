@@ -1,7 +1,7 @@
 ---
-title: "MCP Server Compatibility in AnythingLLM"
+title: "MCP Server Compatibility and Configuration in AnythingLLM"
 sidebarTitle: "MCP Compatibility"
-description: "AnythingLLM supports the Model Context Protocol (MCP). Connect any MCP server to expose its tools to AnythingLLM agents, expanding capabilities without custom code."
+description: "AnythingLLM supports the Model Context Protocol (MCP). Connect any MCP server to expose its tools to agents and expand capabilities without custom code."
 ---
 
 The **Model Context Protocol (MCP)** is an open standard that defines a common interface for AI models to communicate with external tools and data sources. AnythingLLM acts as an MCP **client**: it boots your configured MCP servers, discovers their tools, and automatically converts each tool into a callable function available to the agent runtime. This means any MCP-compatible server — whether it controls Docker containers, queries databases, posts to Slack, or reads a local filesystem — becomes an agent tool with zero custom code on your part.
@@ -22,8 +22,8 @@ AnythingLLM supports three MCP transport types:
 | Transport | Config field | Description |
 |---|---|---|
 | **stdio** | `command` + optional `args` | Launches a local process (e.g., `npx`, `python`) and communicates via standard I/O. Most common for locally installed MCP servers. |
-| **SSE** | `url` + `"type": "sse"` | Connects to a remote MCP server over Server-Sent Events. |
-| **Streamable HTTP** | `url` + `"type": "streamable"` or `"http"` | Connects to a remote MCP server using the Streamable HTTP transport. |
+| **SSE** | `url` (default when no `type` is set, or `"type": "sse"`) | Connects to a remote MCP server over Server-Sent Events. This is the default transport for URL-based server definitions. |
+| **Streamable HTTP** | `url` + `"type": "streamable"` or `"type": "http"` | Connects to a remote MCP server using the Streamable HTTP transport. |
 
 ## Connecting an MCP Server
 

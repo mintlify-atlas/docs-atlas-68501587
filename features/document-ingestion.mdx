@@ -49,7 +49,7 @@ Every document — whether it is a local file upload or a scraped URL — passes
     - PDFs → text extraction; falls back to OCR if no text layer is found
     - DOCX, PPTX, ODT, ODP → LibreOffice-compatible MIME parser
     - XLSX → spreadsheet-to-text converter
-    - Images (PNG, JPG, WEBP) → Tesseract OCR
+    - Images (PNG, JPG, JPEG, WEBP) → Tesseract OCR
     - Audio / video → Speech-to-Text transcription
     - URLs → web scraper or YouTube transcript extractor
   </Step>
@@ -69,7 +69,7 @@ Every document — whether it is a local file upload or a scraped URL — passes
 
 ## OCR Support
 
-For image-based PDFs and standalone image files (PNG, JPG, WEBP), AnythingLLM uses [Tesseract.js](https://github.com/naptha/tesseract.js) to extract text automatically.
+For image-based PDFs and standalone image files (PNG, JPG, JPEG, WEBP), AnythingLLM uses [Tesseract.js](https://github.com/naptha/tesseract.js) to extract text automatically.
 
 The OCR language defaults to English (`eng`). To recognize other languages, set the `TARGET_OCR_LANG` environment variable to a comma-separated list of [Tesseract language codes](https://github.com/tesseract-ocr/tessdata):
 

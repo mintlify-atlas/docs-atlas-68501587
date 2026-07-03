@@ -1,5 +1,5 @@
 ---
-title: "Configure LLM Providers in AnythingLLM"
+title: "AnythingLLM LLM Providers: Setup and Configuration"
 sidebarTitle: "LLM Providers"
 description: "Connect AnythingLLM to 30+ LLM providers including OpenAI, Anthropic, Ollama, Gemini, Mistral, Groq, and AWS Bedrock. Set via UI or environment variables."
 ---
@@ -124,8 +124,12 @@ These providers run entirely on your own hardware — no data is sent to externa
 
     ```bash
     LLM_PROVIDER='lemonade'
-    LEMONADE_LLM_API_KEY='your-lemonade-api-key'
+    LEMONADE_LLM_BASE_PATH='http://127.0.0.1:8000'
     LEMONADE_LLM_MODEL_PREF='Llama-3.2-3B-Instruct'
+    # Optional — API key if your Lemonade server requires authentication:
+    # LEMONADE_LLM_API_KEY='your-lemonade-api-key'
+    # Optional — override model context window size:
+    # LEMONADE_LLM_MODEL_TOKEN_LIMIT=8192
     ```
   </Accordion>
 
@@ -438,7 +442,7 @@ Use these when you have any OpenAI-compatible endpoint that doesn't have its own
 | `textgenwebui` | Local | `TEXT_GEN_WEB_UI_API_KEY` |
 | `nvidia-nim` | Local | *(none required)* |
 | `docker-model-runner` | Local | *(none required)* |
-| `lemonade` | Local | `LEMONADE_LLM_API_KEY` |
+| `lemonade` | Local | *(none required — `LEMONADE_LLM_API_KEY` optional)* |
 | `foundry` | Local | *(none required)* |
 | `privatemode` | Local | *(none required)* |
 | `generic-openai` | Generic | `GENERIC_OPEN_AI_API_KEY` |

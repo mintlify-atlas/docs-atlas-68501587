@@ -1,5 +1,5 @@
 ---
-title: "AnythingLLM Developer API Reference"
+title: "AnythingLLM REST API — Complete Developer Reference"
 sidebarTitle: "Overview"
 description: "The AnythingLLM REST API lets you programmatically manage workspaces, documents, users, and run chats. Access Swagger docs at /api/docs on your instance."
 ---
@@ -109,22 +109,35 @@ If the key is missing or invalid, the API returns `403 Forbidden` with `{ "error
 | `GET` | `/v1/workspace/{slug}` | Get a workspace by slug |
 | `POST` | `/v1/workspace/{slug}/update` | Update workspace settings |
 | `DELETE` | `/v1/workspace/{slug}` | Delete a workspace |
+| `GET` | `/v1/workspace/{slug}/chats` | Retrieve workspace chat history |
+| `POST` | `/v1/workspace/{slug}/update-embeddings` | Add or remove embedded documents |
+| `POST` | `/v1/workspace/{slug}/update-pin` | Pin or unpin a document |
 | `POST` | `/v1/workspace/{slug}/chat` | Send a chat message |
 | `POST` | `/v1/workspace/{slug}/stream-chat` | Stream a chat response |
 | `POST` | `/v1/workspace/{slug}/vector-search` | Semantic vector search |
-| `GET` | `/v1/workspace/{slug}/chats` | Retrieve chat history |
+| `POST` | `/v1/workspace/{slug}/thread/new` | Create a workspace thread |
+| `POST` | `/v1/workspace/{slug}/thread/{threadSlug}/update` | Update a thread |
+| `DELETE` | `/v1/workspace/{slug}/thread/{threadSlug}` | Delete a thread |
+| `GET` | `/v1/workspace/{slug}/thread/{threadSlug}/chats` | Get thread chat history |
+| `POST` | `/v1/workspace/{slug}/thread/{threadSlug}/chat` | Send a chat to a thread |
+| `POST` | `/v1/workspace/{slug}/thread/{threadSlug}/stream-chat` | Stream a chat to a thread |
 
 ### Documents
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/v1/document/upload` | Upload a file for processing |
+| `POST` | `/v1/document/upload/{folderName}` | Upload a file into a named folder |
 | `POST` | `/v1/document/upload-link` | Upload a URL for scraping |
 | `POST` | `/v1/document/raw-text` | Upload raw text as a document |
 | `GET` | `/v1/documents` | List all documents |
+| `GET` | `/v1/documents/folder/{folderName}` | List documents in a folder |
+| `GET` | `/v1/document/accepted-file-types` | List accepted file types |
+| `GET` | `/v1/document/metadata-schema` | Get metadata key schema |
 | `GET` | `/v1/document/{docName}` | Get a single document |
-| `POST` | `/v1/document/move-files` | Move documents between folders |
 | `POST` | `/v1/document/create-folder` | Create a document folder |
 | `DELETE` | `/v1/document/remove-folder` | Remove a document folder |
+| `POST` | `/v1/document/move-files` | Move documents between folders |
+| `GET` | `/v1/document/generated-files/{filename}` | Download an agent-generated file |
 
 ### Admin *(multi-user mode only)*
 | Method | Path | Description |
@@ -132,18 +145,25 @@ If the key is missing or invalid, the API returns `403 Forbidden` with `{ "error
 | `GET` | `/v1/admin/is-multi-user-mode` | Check multi-user mode status |
 | `GET` | `/v1/admin/users` | List all users |
 | `POST` | `/v1/admin/users/new` | Create a new user |
+| `POST` | `/v1/admin/users/{id}` | Update a user |
 | `DELETE` | `/v1/admin/users/{id}` | Delete a user |
 | `GET` | `/v1/admin/invites` | List all invites |
 | `POST` | `/v1/admin/invite/new` | Create an invite link |
-| `GET` | `/v1/admin/preferences` | Get system preferences |
+| `DELETE` | `/v1/admin/invite/{id}` | Deactivate an invite |
+| `GET` | `/v1/admin/workspaces/{workspaceId}/users` | List users with workspace access |
+| `POST` | `/v1/admin/workspaces/{workspaceSlug}/manage-users` | Set workspace user permissions |
+| `POST` | `/v1/admin/workspace-chats` | List all system chats (paginated) |
+| `POST` | `/v1/admin/preferences` | Update instance-wide preferences |
 
 ### Embeds
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/v1/embed` | List all embed configurations |
 | `POST` | `/v1/embed/new` | Create a new embed |
+| `POST` | `/v1/embed/{embedUuid}` | Update an embed configuration |
 | `DELETE` | `/v1/embed/{embedUuid}` | Delete an embed |
-| `GET` | `/v1/embed/{embedUuid}/chats` | List sessions for an embed |
+| `GET` | `/v1/embed/{embedUuid}/chats` | List all chats for an embed |
+| `GET` | `/v1/embed/{embedUuid}/chats/{sessionUuid}` | Get chats for a specific embed session |
 
 ### OpenAI Compatible
 | Method | Path | Description |

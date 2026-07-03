@@ -31,7 +31,7 @@ Most AI chat tools either lock you into a single cloud provider, expose your dat
 Upload PDFs, Word documents, text files, and more directly into workspaces. AnythingLLM chunks, embeds, and indexes them so the LLM can answer questions grounded in your actual content — with source citations shown in every response.
 
 **AI Agents**
-Agents can browse the web, run code, read files, and execute multi-step workflows — all from within a chat interface. AnythingLLM includes a no-code agent flow builder and supports [MCP (Model Context Protocol)](https://docs.anythingllm.com/mcp-compatibility/overview) for connecting external tools.
+Agents can browse the web, run code, read files, and execute multi-step workflows — all from within a chat interface. AnythingLLM includes a no-code agent flow builder and supports [MCP (Model Context Protocol)](/agents/mcp-compatibility) for connecting external tools.
 
 **Multi-User Support with Permissions**
 The Docker version supports multiple users with per-user access controls. Admins can define who can create workspaces, upload documents, manage API keys, and more — without compromising security or privacy.
@@ -39,8 +39,8 @@ The Docker version supports multiple users with per-user access controls. Admins
 **30+ LLM Providers**
 AnythingLLM works with every major language model provider out of the box, including OpenAI, Anthropic, Google Gemini, Ollama, LM Studio, Mistral, Groq, AWS Bedrock, Azure OpenAI, and many more. Switching providers requires no code changes — just update your environment variables or use the settings UI.
 
-**11+ Vector Databases**
-The default vector store is [LanceDB](https://github.com/lancedb/lancedb), which runs embedded with zero setup. You can swap to Pinecone, Chroma, Weaviate, Qdrant, Milvus, Zilliz, Astra DB, or PGVector at any time.
+**10 Vector Databases**
+The default vector store is [LanceDB](https://github.com/lancedb/lancedb), which runs embedded with zero setup. You can swap to Pinecone, Chroma, ChromaCloud, Weaviate, Qdrant, Milvus, Zilliz, Astra DB, or PGVector at any time.
 
 **Embeddable Chat Widget**
 Embed a white-labeled chat widget on any website with a single script tag. The widget connects to your AnythingLLM instance and workspace (Docker version only).
@@ -83,7 +83,7 @@ In production (Docker or bare metal), the **server** serves the compiled fronten
     OpenAI, Anthropic, Google Gemini, Ollama, LM Studio, Mistral, Groq, AWS Bedrock, Azure OpenAI, DeepSeek, Cohere, Together AI, Fireworks AI, Perplexity, OpenRouter, xAI, and more — 30+ total.
   </Card>
   <Card title="Vector Databases" icon="database">
-    LanceDB (default, embedded), Pinecone, Chroma, ChromaCloud, Weaviate, Qdrant, Milvus, Zilliz, Astra DB, PGVector — 11+ options.
+    LanceDB (default, embedded), Pinecone, Chroma, ChromaCloud, Weaviate, Qdrant, Milvus, Zilliz, Astra DB, PGVector — 10 options.
   </Card>
   <Card title="Embedding Models" icon="vector-square">
     Native built-in embedder (default), OpenAI, Azure OpenAI, Ollama, LM Studio, Cohere, Voyage AI, Mistral, Gemini, LiteLLM, and generic OpenAI-compatible APIs.

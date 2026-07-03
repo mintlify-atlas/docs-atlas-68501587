@@ -1,7 +1,7 @@
 ---
-title: "Configure Vector Databases in AnythingLLM"
+title: "AnythingLLM Vector Databases: Setup and Configuration"
 sidebarTitle: "Vector Databases"
-description: "Connect AnythingLLM to 11 vector databases including LanceDB (built-in), Chroma, Pinecone, Qdrant, Weaviate, Milvus, and pgvector."
+description: "Connect AnythingLLM to 10 vector databases including LanceDB (built-in), Chroma, Pinecone, Qdrant, Weaviate, Milvus, and pgvector."
 ---
 
 Every time AnythingLLM embeds a document chunk, it writes the resulting vector alongside the source text and metadata to a vector database. When a user sends a chat message, AnythingLLM converts the query into a vector with the same embedding model and performs a similarity search against that database to retrieve the most relevant context before calling the LLM. The vector database you choose affects storage capacity, query latency, scalability, and operational complexity — so it is worth picking the right one for your deployment size and infrastructure.

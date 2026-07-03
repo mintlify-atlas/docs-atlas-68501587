@@ -39,9 +39,9 @@ Running AnythingLLM on bare metal means installing and launching it directly on 
     yarn setup
     ```
 
-    The `setup` script also copies the example `.env` files into place and runs the initial Prisma database generation and migration. After it completes, you will have:
+    The `setup` script also copies the example `.env` files into place for development use and runs the initial Prisma database generation and migration. After it completes, you will have:
 
-    - `server/.env.development` (copied from `server/.env.example`)
+    - `server/.env.development` (copied from `server/.env.example`) — note: this is the *development* env file; Step 3 creates the production one
     - `collector/.env` (copied from `collector/.env.example`)
     - `docker/.env` (copied from `docker/.env.example`)
     - `frontend/.env` (copied from `frontend/.env.example`)

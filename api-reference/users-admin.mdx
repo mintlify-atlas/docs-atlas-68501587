@@ -1,7 +1,7 @@
 ---
-title: "User Management and Admin API Endpoints"
+title: "User Management and Admin API — AnythingLLM Docs"
 sidebarTitle: "Users & Admin"
-description: "REST API for managing users, invites, workspace user access, and admin preferences in multi-user AnythingLLM instances."
+description: "REST API for managing users, roles, invites, workspace permissions, and admin preferences in multi-user mode AnythingLLM instances."
 ---
 
 AnythingLLM supports a multi-user mode that unlocks role-based access control, invite-based registration, and per-workspace permissions. The Admin API lets you manage all of this programmatically — create and update users, generate invite links, configure which users can access specific workspaces, and adjust instance-wide preferences. The User Management endpoints provide a lighter-weight way to list users and issue temporary login tokens for SSO-style integrations.
@@ -249,7 +249,7 @@ curl -X POST https://your-instance.com/api/v1/admin/workspace-chats \
 
 ## POST /v1/admin/preferences
 
-Update instance-wide multi-user preferences. Only the keys you supply will be changed.
+Update instance-wide multi-user preferences. Requires multi-user mode to be enabled. Only the keys you supply will be changed.
 
 ### Body Parameters
 
@@ -322,7 +322,7 @@ Add users to a workspace's allowed list. By default this is an additive operatio
 <ResponseField name="success" type="boolean">Whether the operation succeeded.</ResponseField>
 <ResponseField name="error" type="string | null">`null` on success or an error message.</ResponseField>
 <ResponseField name="users" type="array">
-  Updated list of users with access, each including `userId`, `username`, and `role`.
+  Updated list of users with access, each including `userId`, `username`, and `role` (`"admin"` or `"default"`).
 </ResponseField>
 
 ```bash

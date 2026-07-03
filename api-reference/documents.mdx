@@ -100,6 +100,14 @@ Provide a URL for AnythingLLM to scrape, parse, and store as a document. Optiona
   Comma-separated workspace slugs to embed the scraped document into after processing.
 </ParamField>
 
+<ParamField body="scraperHeaders" type="object">
+  Key-value pairs of HTTP headers to send with the scrape request. Useful when the target URL requires authentication or custom headers. Example: `{ "Authorization": "Bearer token123" }`.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Key-value metadata to attach to the scraped document. Supported keys: `title`, `docAuthor`, `description`, `docSource`.
+</ParamField>
+
 ### Response Fields
 
 <ResponseField name="success" type="boolean">Upload status.</ResponseField>

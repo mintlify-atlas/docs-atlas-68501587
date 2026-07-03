@@ -1,7 +1,7 @@
 ---
-title: "Configure Embedding Models in AnythingLLM"
+title: "AnythingLLM Embedding Models: Setup and Configuration"
 sidebarTitle: "Embedding Models"
-description: "Choose and configure embedding models for document vectorization in AnythingLLM. Supports OpenAI, Azure, Ollama, Cohere, Gemini, and native local embedders."
+description: "Choose and configure embedding models for document vectorization in AnythingLLM. Supports OpenAI, Azure, Ollama, Cohere, Gemini, and native embedders."
 ---
 
 When you upload a document to AnythingLLM, the collector splits it into overlapping text chunks and passes each chunk through an embedding model, which converts the text into a high-dimensional numeric vector. Those vectors are stored in your chosen vector database and later used to find the most semantically relevant chunks for each chat query. The quality, dimensionality, and context-window size of the embedding model therefore directly affect retrieval accuracy — choosing the right embedder for your use-case is as important as choosing the right LLM.

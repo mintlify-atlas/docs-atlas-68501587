@@ -22,6 +22,8 @@ Each workspace stores the following configuration alongside its documents:
 | `chatMode` | Retrieval strategy — `chat`, `query`, or `automatic` | `"automatic"` |
 | `chatProvider` | Override the global LLM provider for this workspace | `null` (inherits global) |
 | `chatModel` | Override the global LLM model for this workspace | `null` (inherits global) |
+| `agentProvider` | Override the LLM provider used when an agent is invoked | `null` (inherits `chatProvider`) |
+| `agentModel` | Override the LLM model used when an agent is invoked | `null` (inherits `chatModel`) |
 | `vectorSearchMode` | Vector search strategy — `default` or `rerank` | `"default"` |
 | `queryRefusalResponse` | Custom message when no sources are found in `query` mode | `null` |
 
@@ -65,7 +67,7 @@ By default, workspaces inherit the globally configured LLM provider and model. Y
 
 The hierarchy is:
 
-```
+```text
 Workspace chatProvider / chatModel
     ↓ (if null)
 Global LLM_PROVIDER / LLM_MODEL_PREF
@@ -144,7 +146,7 @@ The slug appears in:
 
 AnythingLLM uses a layered settings model. Workspace-level settings always win over global defaults, but global settings apply whenever a workspace field is left as `null`.
 
-```
+```text
 ┌─────────────────────────────┐
 │      Workspace Settings     │  ← checked first
 │  chatProvider, chatModel,   │

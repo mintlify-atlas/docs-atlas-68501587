@@ -1,7 +1,7 @@
 ---
-title: "Dynamic Model Router: Auto-Select the Best LLM"
+title: "Model Router: Automatically Route Chats to the Best LLM"
 sidebarTitle: "Model Router"
-description: "AnythingLLM's Model Router automatically routes each chat to the optimal LLM provider and model based on rules you define—balancing cost, speed, and capability."
+description: "Route each chat to the right LLM automatically with AnythingLLM's Model Router. Define prioritized rules to balance cost, speed, and model capability."
 ---
 
 The Model Router lets you configure rules that automatically direct each incoming chat message to the most appropriate LLM provider and model—without the user lifting a finger. Instead of locking a workspace to a single model, you define a prioritized ruleset: simple factual queries go to a fast, cheap model while complex multi-step reasoning escalates to GPT-4o or Claude. The router evaluates every rule in priority order on each new message, picks the first match, and then sticks with that model for a configurable cooldown window so follow-up messages in the same conversation stay consistent.
@@ -20,7 +20,7 @@ If no rule matches, the router falls back to a configurable **fallback provider 
 Once a rule fires, the resolved model "sticks" for a configurable cooldown period (default: **300 seconds / 5 minutes**). Every follow-up message in the same user–workspace–thread context reuses the same model without re-running rules. The TTL resets on each new message, so an active conversation keeps the same model "hot." When the window expires and no new rule matches, the router falls back to the default model.
 
 <Note>
-  The Model Router is a **multi-user / Docker** feature. You must have at least **two distinct LLM providers** configured in System Settings before creating a router. The router cannot route between models on the same provider alone—it needs a second provider to route to.
+  The Model Router is a **multi-user / Docker** feature. You must have at least one LLM provider configured in System Settings. Rules can route to any provider/model combination, including different models on the same provider.
 </Note>
 
 ## Use Cases
@@ -33,7 +33,7 @@ Once a rule fires, the resolved model "sticks" for a configurable cooldown perio
     Automatically escalate to a vision-capable model when an image attachment is present, or switch to a code-specialized model when the prompt contains programming keywords.
   </Card>
   <Card title="Time-Based Routing" icon="clock">
-    Send after-hours traffic to a local Ollama model to avoid cloud API costs during low-priority windows, then route back to a cloud model during business hours.
+    Send after-hours traffic to a local Ollama model to avoid cloud API costs during low-priority windows, then route back to a cloud model during business hours. Rules use the server's local clock when evaluating `currentHour`.
   </Card>
   <Card title="Long-Context Handling" icon="file-lines">
     Detect when conversation token counts exceed a threshold and automatically switch to a model with a larger context window before the conversation gets truncated.
@@ -74,15 +74,15 @@ Calculated rules evaluate deterministic conditions against the live conversation
 | `promptContent` | string | The full text of the user's current message |
 | `conversationTokenCount` | number | Estimated token count for the full context (system prompt + history + current message) |
 | `conversationMessageCount` | number | Total number of messages in the conversation so far (including the current one) |
-| `currentHour` | number | The current UTC hour (0–23) |
+| `currentHour` | number | The current server local hour (0–23) |
 | `hasImageAttachment` | string | `"true"` if the message includes an image attachment, otherwise `"false"` |
 
 **Available comparators:**
 
 | Comparator | Applies to | Description |
 |---|---|---|
-| `contains` | string | Prompt contains any of the comma-separated keywords (case-insensitive) |
-| `matches` | string | Prompt matches a regex pattern (e.g., `/code\|function\|bug/i`) |
+| `contains` | string | The string value contains any of the comma-separated keywords (case-insensitive) |
+| `matches` | string | The string value matches a regex pattern (e.g., `/code\|function\|bug/i`) |
 | `eq` / `neq` | string, number | Equals / not equals |
 | `gt` / `gte` | number | Greater than / greater than or equal |
 | `lt` / `lte` | number | Less than / less than or equal |
@@ -155,7 +155,7 @@ Classification results are cached for the full sticky window (matching results) 
 
 Rules are evaluated in ascending priority order. The **first rule that matches** wins—remaining rules are skipped. Assign lower priority numbers to the most specific or highest-importance rules.
 
-```
+```text
 Priority 1: code_questions     → openai/gpt-4o
 Priority 2: long_context       → anthropic/claude-sonnet-4-6
 Priority 3: research_queries   → openai/gpt-4o

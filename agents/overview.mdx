@@ -1,7 +1,7 @@
 ---
 title: "AI Agents in AnythingLLM: Tools, Skills, and Automation"
 sidebarTitle: "Overview"
-description: "AnythingLLM agents extend your LLM with real-world tools: web browsing, file creation, SQL queries, code execution, calendar access, and custom MCP servers."
+description: "AnythingLLM agents extend your LLM with real-world tools: web browsing, file creation, SQL queries, calendar access, email, and custom MCP servers."
 ---
 
 AI agents in AnythingLLM transform a standard language model conversation into an action-capable workflow. Rather than simply generating text, an agent can search the web, run SQL queries against live databases, create downloadable files, read your Gmail inbox, and invoke any tool exposed by an external MCP server — all within a single chat turn. Every agent response is driven by the **aibitat** framework, a lightweight internal orchestration layer that routes tool calls, manages conversation state, streams real-time status updates over a WebSocket connection, and safely limits how many tools the agent is allowed to chain together.
@@ -50,7 +50,7 @@ Two additional environment variables give you fine-grained control over agent be
     icon="wrench"
     href="/agents/built-in-skills"
   >
-    Web browsing, SQL, file creation, Gmail, Google Calendar, Outlook, charts, and more.
+    Web browsing, SQL, file creation, Gmail, Google Calendar, Outlook, charts, and memory.
   </Card>
   <Card
     title="Custom Agents"
