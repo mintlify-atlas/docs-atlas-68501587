@@ -1,0 +1,141 @@
+---
+title: "Multi-User Mode and Permissions in AnythingLLM"
+sidebarTitle: "Multi-User"
+description: "AnythingLLM supports multi-user mode with role-based access control. Assign Admin, Manager, or Default roles and control workspace access per user."
+---
+
+Multi-user mode transforms AnythingLLM from a personal AI assistant into a shared platform for your entire team. Once enabled, every person who accesses the instance must authenticate with their own username and password. An admin controls which workspaces each user can see and what actions they can perform. User activity is tracked individually, and daily message limits can be applied per account to manage costs.
+
+<Warning>
+  Multi-user mode is only available in the **Docker** deployment of AnythingLLM. The desktop application (`.exe`, `.dmg`, `.AppImage`) always runs in single-user mode and cannot be switched to multi-user mode.
+</Warning>
+
+## Enabling Multi-User Mode
+
+<Steps>
+  <Step title="Open System Settings">
+    In the AnythingLLM UI, click the **Settings** gear icon in the bottom-left corner.
+  </Step>
+  <Step title="Navigate to Security">
+    Select **Security** from the settings sidebar.
+  </Step>
+  <Step title="Enable multi-user mode">
+    Toggle **Multi-User Mode** on. You will be prompted to confirm — this action migrates existing single-user data (chats, memories) to the admin account.
+  </Step>
+  <Step title="Set an admin password">
+    If you have not set a password yet, you will be required to create one before multi-user mode activates.
+  </Step>
+</Steps>
+
+## Roles and Permissions
+
+AnythingLLM defines three roles. Every user is assigned exactly one role.
+
+| Capability | Admin | Manager | Default |
+|---|:---:|:---:|:---:|
+| Access all workspaces | ✅ | ✅ | ❌ |
+| Create workspaces | ✅ | ✅ | ❌ |
+| Delete workspaces | ✅ | ✅ | ❌ |
+| Manage workspace documents | ✅ | ✅ | ❌ |
+| Create users | ✅ | ✅ | ❌ |
+| Delete users | ✅ | ❌ | ❌ |
+| Change user roles | ✅ | ❌ | ❌ |
+| Manage system settings | ✅ | ❌ | ❌ |
+| Generate invite links | ✅ | ✅ | ❌ |
+| Chat in assigned workspaces | ✅ | ✅ | ✅ |
+| View their own chat history | ✅ | ✅ | ✅ |
+
+<AccordionGroup>
+  <Accordion title="Admin">
+    Full access to everything: system settings, user management, workspace creation and deletion, LLM and embedding configuration, and all workspaces. There must always be at least one admin account.
+  </Accordion>
+  <Accordion title="Manager">
+    Can manage workspaces and users but cannot change system-level settings (LLM provider, vector DB, API keys) or promote another user to admin. Suitable for team leads who need to onboard colleagues without having full system access.
+  </Accordion>
+  <Accordion title="Default">
+    Can only access workspaces they have been explicitly granted access to. They can chat, view their own history, and manage their own profile and memories. They cannot create or delete workspaces or manage other users.
+  </Accordion>
+</AccordionGroup>
+
+## Managing Users
+
+<Tabs>
+  <Tab title="Create a user manually">
+    <Steps>
+      <Step title="Open Users">
+        Go to **Settings → Users** and click **New User**.
+      </Step>
+      <Step title="Fill in details">
+        Enter a username (lowercase, 2–64 characters, starting with a letter), password, and select a role.
+      </Step>
+      <Step title="Assign workspaces">
+        After creating the user, click their name and use the **Workspace Access** section to grant them access to specific workspaces.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Invite link">
+    Invite links let users self-register without requiring an admin to manually create each account.
+
+    <Steps>
+      <Step title="Generate an invite">
+        Go to **Settings → Invites** and click **Create Invite**. Optionally pre-select workspaces that the new user should be granted access to upon registration.
+      </Step>
+      <Step title="Share the link">
+        Copy the invite URL (e.g., `https://your-instance.com/accept-invite/<token>`) and send it to the new team member.
+      </Step>
+      <Step title="User registers">
+        The recipient opens the link, chooses a username and password, and their account is created automatically with the role and workspace access you configured.
+      </Step>
+    </Steps>
+
+    <Note>
+      Each invite link can only be claimed once. After a user registers, the invite is automatically deactivated.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Workspace-Level Access Control
+
+In multi-user mode, **Default** users only see workspaces they have been explicitly granted access to. Admins and Managers can access every workspace regardless of explicit assignment.
+
+To grant a Default user access to a workspace:
+
+1. Navigate to **Settings → Users**.
+2. Click the user you want to edit.
+3. Under **Workspace Access**, check the workspaces this user should be able to use.
+4. Click **Save**.
+
+Alternatively, when generating an invite link, you can pre-select workspaces — the new user will be granted access to those workspaces as soon as they complete registration.
+
+## Daily Message Limits
+
+You can cap how many LLM messages a single user can send per day. This is useful for controlling costs in shared environments.
+
+- Set `dailyMessageLimit` on a user (via Settings → Users → Edit User)
+- Set to `null` to allow unlimited messages
+- The limit resets at midnight UTC
+
+## Password Recovery
+
+If a user forgets their password, an admin can reset it from **Settings → Users** by editing the user and providing a new password. There is no self-service email-based recovery — password resets are always admin-initiated.
+
+## Simple SSO Passthrough
+
+For teams with an existing identity provider, AnythingLLM supports a **Simple SSO** mechanism that lets an external system log users in via a short-lived token.
+
+Enable it by setting the `SIMPLE_SSO_ENABLED` environment variable. Once enabled, your identity provider can call the `/api/v1/users/issue-auth-token` API endpoint (with a valid API key) to obtain a temporary login URL for a user:
+
+```bash
+# Issue a temporary token for user ID 42
+curl -X POST http://localhost:3001/api/v1/users/42/issue-auth-token \
+  -H "Authorization: Bearer <api-key>"
+
+# Response includes a loginPath like:
+# /sso/simple?token=<temporary-token>
+```
+
+Redirect the user to that path and they will be authenticated without entering credentials.
+
+<Note>
+  To disable the standard username/password login form entirely (so users can **only** log in via SSO), also set the `SIMPLE_SSO_NO_LOGIN` environment variable. This prevents users from bypassing SSO by going directly to the login page.
+</Note>

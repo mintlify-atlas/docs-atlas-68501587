@@ -1,0 +1,123 @@
+---
+title: "AnythingLLM Chrome Browser Extension"
+sidebarTitle: "Browser Extension"
+description: "The AnythingLLM Chrome extension lets you clip web content directly to your workspaces, start AI chats from any webpage, and access AnythingLLM from your browser toolbar."
+---
+
+The AnythingLLM browser extension brings your self-hosted AI instance directly into your browsing workflow. Without leaving the page you're reading, you can send article text or selected passages straight into an AnythingLLM workspace for embedding, open a sidebar chat window to ask questions, or quickly access any workspace from the browser toolbar. The extension connects to your own AnythingLLM instance—whether it's running on `localhost` or a remote server—so your data never touches a third-party service.
+
+<Note>
+  The extension requires a running AnythingLLM instance to connect to. It does not provide any AI functionality on its own—it is a client for your existing AnythingLLM server. The extension is open source and available at [github.com/Mintplex-Labs/anythingllm-extension](https://github.com/Mintplex-Labs/anythingllm-extension).
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Install the extension from the Chrome Web Store">
+    Open the Chrome Web Store and search for **AnythingLLM**, or navigate directly to the extension listing page. Click **Add to Chrome** to install. The AnythingLLM icon will appear in your browser toolbar.
+
+    The extension works in any Chromium-based browser that supports the Chrome Web Store, including Google Chrome, Microsoft Edge, and Brave.
+  </Step>
+  <Step title="Generate an API key in AnythingLLM">
+    In your AnythingLLM instance, navigate to **Settings → API Keys** and click **Generate New API Key**. Give it a descriptive label (e.g., `browser-extension`) and copy the key—you'll only see it once.
+
+    The API key grants the extension the same permissions as your user account. Keep it private and rotate it if it is ever compromised.
+  </Step>
+  <Step title="Connect the extension to your AnythingLLM instance">
+    Click the AnythingLLM icon in your toolbar to open the extension popup. Enter:
+
+    - **Server URL** — the full URL of your AnythingLLM instance, e.g., `http://localhost:3001` or `https://ai.yourcompany.com`
+    - **API Key** — the key you generated in the previous step
+
+    Click **Connect**. The extension will verify the connection and show your available workspaces.
+  </Step>
+  <Step title="Start using the extension">
+    You're connected. See [Features](#features) below for everything you can do from the browser.
+  </Step>
+</Steps>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Clip Page Content to a Workspace" icon="scissors">
+    Right-click anywhere on a webpage and select **Send to AnythingLLM** to clip the full page text (or your current selection) directly into a workspace. The content is processed and embedded so you can immediately ask questions about it.
+  </Card>
+  <Card title="Sidebar Chat" icon="comments">
+    Open a persistent chat panel alongside any webpage. Ask questions about what you're reading, use any of your workspaces, and get AI-assisted answers without switching tabs.
+  </Card>
+  <Card title="Toolbar Quick Access" icon="toolbox">
+    Click the AnythingLLM icon in the toolbar for instant access to your workspaces. Start a new chat, switch workspaces, or jump to your AnythingLLM instance in one click.
+  </Card>
+  <Card title="Selected Text Prompting" icon="text-cursor">
+    Highlight any text on a page, right-click, and choose a quick-action prompt—summarize the selection, explain a concept, translate it, or send it to an agent workflow.
+  </Card>
+</CardGroup>
+
+## Connecting to Local and Remote Instances
+
+The extension supports both local development instances and production remote servers.
+
+<Tabs>
+  <Tab title="Local (localhost)">
+    If AnythingLLM is running on your machine (e.g., via Docker or the desktop app's server component), enter:
+
+    ```
+    http://localhost:3001
+    ```
+
+    No special network configuration is needed. The extension communicates with the local server directly from the browser.
+  </Tab>
+  <Tab title="Remote Server">
+    If AnythingLLM is deployed on a remote host, enter the full public URL:
+
+    ```
+    https://ai.yourcompany.com
+    ```
+
+    Ensure your server is accessible over HTTPS in production. The extension supports both `http://` and `https://` URLs.
+  </Tab>
+</Tabs>
+
+## API Key Management
+
+The extension authenticates every request to your AnythingLLM instance using the API key you provide. This key is stored locally in the extension's storage and is never sent anywhere except your own server.
+
+To generate or manage API keys:
+
+1. Open AnythingLLM and go to **Settings → API Keys**.
+2. Click **Generate New API Key**.
+3. Copy the key immediately—it is only shown once.
+4. To revoke access, delete the key from the API Keys settings page. This immediately invalidates any extension (or other client) using that key.
+
+<Tip>
+  If you share your AnythingLLM instance with multiple users, generate a separate API key for each browser extension user. That way you can revoke individual access without affecting everyone else.
+</Tip>
+
+## Troubleshooting
+
+<Accordion title="The extension says 'Unable to connect'">
+  - Verify your AnythingLLM server is running and accessible at the URL you entered.
+  - Check that the URL does not have a trailing slash (use `http://localhost:3001`, not `http://localhost:3001/`).
+  - Confirm your API key is correct and has not been deleted from Settings → API Keys.
+  - If using HTTPS, ensure your SSL certificate is valid and trusted by your browser.
+</Accordion>
+
+<Accordion title="My workspaces are not showing up">
+  - The extension lists workspaces your API key has permission to access.
+  - If you are in multi-user mode, ensure the user account associated with the API key has been added to the relevant workspaces.
+  - Try disconnecting and reconnecting in the extension settings.
+</Accordion>
+
+<Accordion title="Clipped content is not appearing in the workspace">
+  - Confirm the workspace you're clipping to has a vector database and embedder configured.
+  - Some pages block content extraction (e.g., pages behind authentication or with strict CSP). Try selecting the text manually before clipping.
+  - Check the AnythingLLM server logs for any document processing errors.
+</Accordion>
+
+## Source Code
+
+The AnythingLLM browser extension is fully open source:
+
+**[github.com/Mintplex-Labs/anythingllm-extension](https://github.com/Mintplex-Labs/anythingllm-extension)**
+
+You can audit the code, build from source, or contribute improvements. The extension follows the same open-source ethos as the core AnythingLLM platform.

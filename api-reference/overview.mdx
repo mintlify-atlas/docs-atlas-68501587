@@ -1,0 +1,154 @@
+---
+title: "AnythingLLM Developer API Reference"
+sidebarTitle: "Overview"
+description: "The AnythingLLM REST API lets you programmatically manage workspaces, documents, users, and run chats. Access Swagger docs at /api/docs on your instance."
+---
+
+The AnythingLLM Developer API gives you full programmatic control over your instance — from spinning up workspaces and uploading documents to running multi-turn chats and managing users. Every operation available in the UI is also available through the REST API, making it straightforward to integrate AnythingLLM into your own applications, pipelines, and automation workflows.
+
+## Base URL
+
+All API requests are served from your running AnythingLLM server. By default the server listens on port `3001`, and every endpoint lives under the `/api/v1/` prefix:
+
+```
+http://your-instance:3001/api/v1/
+```
+
+Replace `your-instance` with the hostname or IP address where AnythingLLM is running. For local development this is typically `localhost`.
+
+## Interactive API Explorer
+
+AnythingLLM ships with a built-in Swagger UI that documents every endpoint and lets you make live requests directly from your browser:
+
+```
+http://your-instance:3001/api/docs
+```
+
+<Note>
+  To disable the Swagger UI in production, set the environment variable `DISABLE_SWAGGER_DOCS=true` in your server's `.env` file. This prevents the interactive docs from being publicly accessible without affecting normal API functionality.
+</Note>
+
+## Authentication
+
+Every request must include a valid API key in the `Authorization` header as a Bearer token:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Generate an API key from **Settings → API Keys → Generate New API Key** inside your AnythingLLM instance. See the [Authentication](/api-reference/authentication) page for full details.
+
+## General Conventions
+
+| Property | Value |
+|---|---|
+| **Protocol** | HTTP / HTTPS |
+| **Request format** | `application/json` |
+| **Response format** | `application/json` (all endpoints) |
+| **Rate limiting** | None by default |
+| **Auth scheme** | Bearer token (`Authorization` header) |
+| **Error shape** | `{ "error": "message" }` |
+
+All timestamps are returned as ISO 8601 strings. Boolean flags are native JSON booleans. Endpoints that return lists always wrap the array in a named key (e.g. `{ "workspaces": [...] }`).
+
+## Quick Start
+
+Use the following `curl` command to verify your API key is valid and your instance is reachable:
+
+```bash
+curl -X GET "http://your-instance:3001/api/v1/auth" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json"
+```
+
+A successful response looks like this:
+
+```json
+{
+  "authenticated": true
+}
+```
+
+If the key is missing or invalid, the API returns `403 Forbidden` with `{ "error": "No valid api key found." }`.
+
+## API Endpoint Groups
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api-reference/authentication">
+    Verify that an API key is valid. A lightweight health-check for auth before executing more complex requests.
+  </Card>
+  <Card title="Workspaces" icon="folder-open" href="/api-reference/workspaces">
+    Create, update, and delete workspaces. Run single-turn and streaming chats, perform vector searches, and manage embedded documents.
+  </Card>
+  <Card title="Documents" icon="file-lines" href="/api-reference/documents">
+    Upload files or raw links for processing, list documents in storage, move files between folders, and remove content from your instance.
+  </Card>
+  <Card title="Admin" icon="shield-halved" href="/api-reference/users-admin">
+    Manage users, roles, invites, and system-wide preferences. All admin endpoints require **multi-user mode** to be enabled.
+  </Card>
+  <Card title="Embeds" icon="code" href="/api-reference/embeds">
+    Create and manage embeddable chat widgets. Control chat mode, session limits, domains, and retrieve embed chat history.
+  </Card>
+  <Card title="OpenAI Compatible" icon="bolt" href="/api-reference/openai-compatible">
+    Drop-in replacements for OpenAI's `/models`, `/chat/completions`, and `/embeddings` endpoints. Point any OpenAI SDK at your AnythingLLM instance.
+  </Card>
+</CardGroup>
+
+## Endpoint Summary
+
+### Authentication
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/auth` | Verify a Bearer token is valid |
+
+### Workspaces
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/v1/workspace/new` | Create a new workspace |
+| `GET` | `/v1/workspaces` | List all workspaces |
+| `GET` | `/v1/workspace/{slug}` | Get a workspace by slug |
+| `POST` | `/v1/workspace/{slug}/update` | Update workspace settings |
+| `DELETE` | `/v1/workspace/{slug}` | Delete a workspace |
+| `POST` | `/v1/workspace/{slug}/chat` | Send a chat message |
+| `POST` | `/v1/workspace/{slug}/stream-chat` | Stream a chat response |
+| `POST` | `/v1/workspace/{slug}/vector-search` | Semantic vector search |
+| `GET` | `/v1/workspace/{slug}/chats` | Retrieve chat history |
+
+### Documents
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/v1/document/upload` | Upload a file for processing |
+| `POST` | `/v1/document/upload-link` | Upload a URL for scraping |
+| `POST` | `/v1/document/raw-text` | Upload raw text as a document |
+| `GET` | `/v1/documents` | List all documents |
+| `GET` | `/v1/document/{docName}` | Get a single document |
+| `POST` | `/v1/document/move-files` | Move documents between folders |
+| `POST` | `/v1/document/create-folder` | Create a document folder |
+| `DELETE` | `/v1/document/remove-folder` | Remove a document folder |
+
+### Admin *(multi-user mode only)*
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/admin/is-multi-user-mode` | Check multi-user mode status |
+| `GET` | `/v1/admin/users` | List all users |
+| `POST` | `/v1/admin/users/new` | Create a new user |
+| `DELETE` | `/v1/admin/users/{id}` | Delete a user |
+| `GET` | `/v1/admin/invites` | List all invites |
+| `POST` | `/v1/admin/invite/new` | Create an invite link |
+| `GET` | `/v1/admin/preferences` | Get system preferences |
+
+### Embeds
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/embed` | List all embed configurations |
+| `POST` | `/v1/embed/new` | Create a new embed |
+| `DELETE` | `/v1/embed/{embedUuid}` | Delete an embed |
+| `GET` | `/v1/embed/{embedUuid}/chats` | List sessions for an embed |
+
+### OpenAI Compatible
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/openai/models` | List available workspace models |
+| `POST` | `/v1/openai/chat/completions` | OpenAI-compatible chat completions |
+| `POST` | `/v1/openai/embeddings` | OpenAI-compatible text embeddings |
+| `GET` | `/v1/openai/vector_stores` | List workspaces as vector stores |

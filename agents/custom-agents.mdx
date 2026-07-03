@@ -1,0 +1,98 @@
+---
+title: "Build Custom AI Agents in AnythingLLM"
+sidebarTitle: "Custom Agents"
+description: "Create custom AI agents in AnythingLLM with a system prompt, custom tools, and specific LLM configuration. Deploy agents scoped to workspaces or globally."
+---
+
+AnythingLLM lets you go beyond the default agent configuration by building custom agents tailored to a specific role or workflow. A custom agent is defined by a focused system prompt that shapes its personality and expertise, paired with a curated subset of tools it is allowed to call. Rather than giving every agent access to every installed skill, you select only the tools relevant to the agent's job — this keeps the agent focused, reduces token overhead, and produces more reliable, on-topic responses.
+
+## Custom Agents vs. Default Skill Agents
+
+The default `@agent` invocation in any workspace activates a general-purpose agent with access to the full set of skills enabled for that workspace. A custom agent, by contrast, is configured independently with:
+
+- Its own **system prompt** that overrides the default agent persona.
+- A specific **whitelist of allowed skills** drawn from the full set of built-in and MCP-backed tools.
+- An optional dedicated **LLM model** selection, separate from the workspace's chat model.
+
+Custom agents are invoked the same way as the default agent — via `@agent` in chat — but the workspace's agent configuration determines which custom agent definition is loaded.
+
+## Creating a Custom Agent
+
+<Steps>
+  <Step title="Open Workspace Settings">
+    Click the gear icon on the workspace you want to configure, then navigate to the **Agent Configuration** tab.
+  </Step>
+  <Step title="Write a System Prompt">
+    Enter a focused system prompt in the **Agent System Prompt** field. Describe the agent's role, constraints, and any specific behaviors. Keep the prompt tight — a narrowly scoped prompt produces a more reliable agent than a generic one.
+
+    ```text
+    You are a SQL data analyst. When the user asks a question about the data,
+    always start by listing the available databases and their tables before
+    writing a query. Present query results in a clean, readable format.
+    Do not use any tools other than the SQL Agent.
+    ```
+  </Step>
+  <Step title="Select Allowed Skills">
+    Under **Agent Skills**, enable only the tools this agent needs. AnythingLLM stores the enabled skill set as a whitelist (`AgentSkillWhitelist`) scoped to the workspace (or, in multi-user mode, to an individual user).
+
+    <Tip>
+      Fewer tools means a smaller tool-definition payload sent to the LLM on each turn, which reduces cost and improves tool-selection accuracy. The skill reranker further trims the active set at runtime — but starting with fewer tools is still the best practice.
+    </Tip>
+  </Step>
+  <Step title="Choose a Model (Optional)">
+    If your workspace is configured to allow model overrides, select a specific LLM for the agent. Some tasks (complex SQL generation, multi-step reasoning) benefit from a more capable model than you'd use for everyday chat.
+  </Step>
+  <Step title="Save and Test">
+    Save the workspace settings, then open the workspace chat and type `@agent` followed by a test prompt. Watch the real-time `introspect` messages in the chat bubble to verify the agent is selecting the expected tools.
+  </Step>
+</Steps>
+
+## Skill Whitelisting
+
+The `AgentSkillWhitelist` model controls which skills are available per context:
+
+- In **single-user mode**, a single system-wide whitelist applies to all agent invocations.
+- In **multi-user mode**, each user has their own whitelist stored under a `user_{id}_whitelisted_agent_skills` key in system settings.
+
+Skills are referenced by their plugin name slug (e.g., `web-browsing`, `sql-agent`, `rag-memory`). The whitelist is stored as a JSON array and checked at agent startup before the tool list is assembled.
+
+## Invoking the Agent in Chat
+
+```
+@agent Summarize all open tickets from the database and send me a PDF report.
+```
+
+The `@agent` prefix routes the message to the agent runner. The agent then selects tools from its whitelist, executes them in sequence, and streams status messages back to the UI in real time. When execution completes, the final LLM response is posted to the chat thread and saved to the conversation history.
+
+## Ephemeral One-Shot Execution
+
+Agents in AnythingLLM operate ephemerally by default: a new aibitat instance is created for each `@agent` invocation, executes the task, saves the conversation to the database via the `chat-history` plugin, and tears down. There is no persistent agent process between requests. This means each `@agent` call starts with a clean tool-call state, though the full conversation history from previous turns is included in the context window.
+
+## Real-Time WebSocket Updates
+
+During agent execution, the aibitat engine sends `introspect` events over a WebSocket connection to the browser. These appear as grayed-out status lines in the chat bubble showing what the agent is currently doing — for example, `Searching DuckDuckGo for "current weather NYC"` or `Executing SQL query on production-db`. This feedback loop makes it easy to diagnose an agent that is choosing unexpected tools or getting stuck.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep system prompts task-focused">
+    A prompt like "You are a research assistant that only uses web search and web scraping" constrains the agent far more effectively than a long list of rules. The LLM will follow role framing more reliably than explicit prohibitions.
+  </Accordion>
+  <Accordion title="Limit tools to what the agent actually needs">
+    Every extra tool in the whitelist is another option the LLM might incorrectly choose. A SQL-focused agent has no need for Gmail access. Trim the whitelist accordingly.
+  </Accordion>
+  <Accordion title="Use AGENT_MAX_TOOL_CALLS as a safety net">
+    Set the `AGENT_MAX_TOOL_CALLS` environment variable to a reasonable limit (e.g., `10`) to prevent weaker models from entering long tool-call loops:
+
+    ```bash
+    AGENT_MAX_TOOL_CALLS=10
+    ```
+  </Accordion>
+  <Accordion title="Auto-approve low-risk tools">
+    Skills like `create-pdf-file` that don't touch external services or sensitive data can be auto-approved so users aren't interrupted with confirmation prompts:
+
+    ```bash
+    AGENT_AUTO_APPROVED_SKILLS=create-pdf-file,create-word-file,create-chart
+    ```
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,235 @@
+---
+title: "Deploy AnythingLLM with Docker"
+sidebarTitle: "Docker"
+description: "Run AnythingLLM in a single Docker container or with Docker Compose. Includes volume mounts, environment variables, and GPU support."
+---
+
+Docker is the recommended and most widely supported way to run AnythingLLM in production. A single `docker run` command pulls the official image, mounts a local storage folder for persistence, and starts the server on port `3001`. The image supports both `amd64` and `arm64` CPU architectures, works on Linux, macOS, and Windows, and includes everything AnythingLLM needs — no separate database server, no build step, no dependency management required.
+
+## Requirements
+
+- Docker v18.03+ on Mac/Windows, or Docker v20.10+ on Linux
+- At least 2 GB of RAM available to the container
+- 10 GB of free disk space (more if storing large document sets or local models)
+- Access to an LLM — a local model via [Ollama](https://ollama.ai/) or an API key from a cloud provider
+
+## Pull the Image
+
+```bash
+docker pull mintplexlabs/anythingllm
+```
+
+The `latest` tag always points to the most recent stable release.
+
+## Running the Container
+
+<CodeGroup>
+  ```bash Linux / macOS
+  export STORAGE_LOCATION=$HOME/anythingllm && \
+  mkdir -p $STORAGE_LOCATION && \
+  touch "$STORAGE_LOCATION/.env" && \
+  docker run -d --rm -p 3001:3001 \
+  --cap-add SYS_ADMIN \
+  -v ${STORAGE_LOCATION}:/app/server/storage \
+  -v ${STORAGE_LOCATION}/.env:/app/server/.env \
+  -e STORAGE_DIR="/app/server/storage" \
+  mintplexlabs/anythingllm
+  ```
+
+  ```powershell Windows (PowerShell)
+  $env:STORAGE_LOCATION="$HOME\Documents\anythingllm"; `
+  If(!(Test-Path $env:STORAGE_LOCATION)) {New-Item $env:STORAGE_LOCATION -ItemType Directory}; `
+  If(!(Test-Path "$env:STORAGE_LOCATION\.env")) {New-Item "$env:STORAGE_LOCATION\.env" -ItemType File}; `
+  docker run -d --rm -p 3001:3001 `
+  --cap-add SYS_ADMIN `
+  -v "$env:STORAGE_LOCATION`:/app/server/storage" `
+  -v "$env:STORAGE_LOCATION\.env:/app/server/.env" `
+  -e STORAGE_DIR="/app/server/storage" `
+  mintplexlabs/anythingllm;
+  ```
+
+  ```yaml Docker Compose
+  version: '3.8'
+  services:
+    anythingllm:
+      image: mintplexlabs/anythingllm
+      container_name: anythingllm
+      ports:
+        - "3001:3001"
+      cap_add:
+        - SYS_ADMIN
+      environment:
+        - STORAGE_DIR=/app/server/storage
+        - JWT_SECRET="make this a large list of random numbers and letters 20+"
+        - LLM_PROVIDER=ollama
+        - OLLAMA_BASE_PATH=http://127.0.0.1:11434
+        - OLLAMA_MODEL_PREF=llama2
+        - OLLAMA_MODEL_TOKEN_LIMIT=4096
+        - EMBEDDING_ENGINE=ollama
+        - EMBEDDING_BASE_PATH=http://127.0.0.1:11434
+        - EMBEDDING_MODEL_PREF=nomic-embed-text:latest
+        - EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
+        - VECTOR_DB=lancedb
+        - WHISPER_PROVIDER=local
+        - TTS_PROVIDER=native
+        - PASSWORDMINCHAR=8
+      volumes:
+        - anythingllm_storage:/app/server/storage
+      restart: always
+
+  volumes:
+    anythingllm_storage:
+      driver: local
+      driver_opts:
+        type: none
+        o: bind
+        device: /path/on/local/disk
+  ```
+</CodeGroup>
+
+After the container starts, open `http://localhost:3001` in your browser to complete the setup wizard.
+
+## Volume Mounts and Data Persistence
+
+The two mounts in the `docker run` command are essential for keeping your data safe across container restarts and image upgrades:
+
+| Mount | Purpose |
+|---|---|
+| `${STORAGE_LOCATION}:/app/server/storage` | Persists your SQLite database, uploaded documents, vector indexes (LanceDB), and locally cached models |
+| `${STORAGE_LOCATION}/.env:/app/server/.env` | Persists your environment configuration so settings survive container recreation |
+
+<Warning>
+  Without these volume mounts, **all your data is lost** when the container stops or is recreated. Always mount your storage directory to a path on the host machine before running the container for the first time.
+</Warning>
+
+If you're using Docker Compose, the named volume `anythingllm_storage` achieves the same persistence. Update the `device:` path under `driver_opts` to point to the directory on your host where you want data stored.
+
+## Port Mapping
+
+AnythingLLM's server listens on port `3001` inside the container. The `-p 3001:3001` flag maps that to port `3001` on your host. To use a different host port (e.g. `8080`), change the left side of the mapping:
+
+```bash
+-p 8080:3001
+```
+
+You can also override the internal port with the `SERVER_PORT` environment variable — but in most cases the default is fine.
+
+## Key Environment Variables
+
+The full list of supported variables is in [`docker/.env.example`](https://github.com/Mintplex-Labs/anything-llm/blob/master/docker/.env.example). The most important ones are:
+
+| Variable | Default | Description |
+|---|---|---|
+| `SERVER_PORT` | `3001` | Port the server listens on inside the container |
+| `STORAGE_DIR` | `/app/server/storage` | Absolute path to the storage directory inside the container |
+| `UID` | `1000` | User ID the container process runs as |
+| `GID` | `1000` | Group ID the container process runs as |
+| `JWT_SECRET` | *(unset)* | Secret used to sign session tokens — set a long random string in production |
+| `AUTH_TOKEN` | *(unset)* | Single-user password for remote/cloud deployments |
+| `DISABLE_TELEMETRY` | `false` | Set to `true` to opt out of anonymous usage telemetry |
+| `LLM_PROVIDER` | *(unset)* | LLM backend to use (e.g. `openai`, `ollama`, `anthropic`) |
+| `VECTOR_DB` | `lancedb` | Vector database backend (e.g. `lancedb`, `pinecone`, `chroma`) |
+| `EMBEDDING_ENGINE` | `native` | Embedding model provider (e.g. `native`, `openai`, `ollama`) |
+
+You can set these variables either with `-e KEY=VALUE` flags on the `docker run` command, or by writing them to the `.env` file mounted at `/app/server/.env`.
+
+### LLM Provider Examples
+
+```bash
+# OpenAI
+-e LLM_PROVIDER=openai \
+-e OPEN_AI_KEY=sk-your-key-here \
+-e OPEN_MODEL_PREF=gpt-4o \
+
+# Ollama (running on host machine)
+-e LLM_PROVIDER=ollama \
+-e OLLAMA_BASE_PATH=http://host.docker.internal:11434 \
+-e OLLAMA_MODEL_PREF=llama3.2 \
+-e OLLAMA_MODEL_TOKEN_LIMIT=4096 \
+
+# Anthropic
+-e LLM_PROVIDER=anthropic \
+-e ANTHROPIC_API_KEY=sk-ant-your-key-here \
+-e ANTHROPIC_MODEL_PREF=claude-sonnet-4-6 \
+```
+
+## About UID and GID
+
+<Warning>
+  The container runs as the user specified by `UID` and `GID` (both default to `1000`). If your host user has a different UID or GID, the container process may not have permission to read from or write to the mounted storage directory. Check your host UID with `id -u` and your GID with `id -g`, and set `UID` and `GID` to matching values in your `.env` file or as `-e` flags.
+</Warning>
+
+```bash
+# Check your host UID and GID
+id -u   # e.g. 1001
+id -g   # e.g. 1001
+
+# Pass them to docker run
+docker run -d --rm -p 3001:3001 \
+  --cap-add SYS_ADMIN \
+  -e UID=1001 \
+  -e GID=1001 \
+  -e STORAGE_DIR="/app/server/storage" \
+  -v $HOME/anythingllm:/app/server/storage \
+  -v $HOME/anythingllm/.env:/app/server/.env \
+  mintplexlabs/anythingllm
+```
+
+## Connecting to Host Services
+
+If you run a local LLM or vector database on your host machine, use `host.docker.internal` instead of `localhost` in URLs:
+
+```
+# Instead of:   http://localhost:11434
+# Use:           http://host.docker.internal:11434
+```
+
+On Linux, add `--add-host=host.docker.internal:host-gateway` to your `docker run` command to enable this hostname. Alternatively, use `http://172.17.0.1:11434` which is the default Docker bridge gateway on Linux.
+
+## GPU Support
+
+AnythingLLM itself does not perform GPU inference — the LLM runs in a separate process (e.g. Ollama or LM Studio on the host). If you're using the built-in local embedder or Whisper transcription and want GPU acceleration, you can pass GPU devices to the container:
+
+```bash
+# NVIDIA GPU
+docker run -d --rm -p 3001:3001 \
+  --cap-add SYS_ADMIN \
+  --gpus all \
+  -v $HOME/anythingllm:/app/server/storage \
+  -v $HOME/anythingllm/.env:/app/server/.env \
+  -e STORAGE_DIR="/app/server/storage" \
+  mintplexlabs/anythingllm
+```
+
+The `--gpus all` flag requires [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) to be installed on the host.
+
+## Building from Source
+
+For development or custom builds, you can build the image locally:
+
+```bash
+git clone https://github.com/Mintplex-Labs/anything-llm.git
+cd anything-llm/docker
+cp .env.example .env
+# Edit .env as needed, then:
+docker-compose up -d --build
+```
+
+This builds the full image from source and starts the container. The build takes a few minutes on first run.
+
+## Troubleshooting
+
+**API not working / can't log in on a remote server?**
+If AnythingLLM is running on a remote machine (e.g. EC2 at `192.168.1.222`), you need to set `VITE_API_BASE` before building:
+
+```bash
+# frontend/.env.production
+VITE_API_BASE="http://192.168.1.222:3001/api"
+```
+
+Then rebuild with `docker-compose up -d --build`.
+
+**Ollama errors (`ECONNREFUSED`)?**
+Make sure you're using `http://host.docker.internal:11434` as the Ollama base path — not `localhost` or `127.0.0.1`. On Linux, ensure `--add-host=host.docker.internal:host-gateway` is in your `docker run` command.
+
+**Need help?** [Join the Discord community](https://discord.gg/6UyHPeGZAC).

@@ -1,0 +1,236 @@
+---
+title: "Built-In Agent Skills and Tools Reference"
+sidebarTitle: "Built-In Skills"
+description: "AnythingLLM includes built-in agent skills for web search, web scraping, SQL queries, file creation, summarization, memory, and more."
+---
+
+AnythingLLM ships with a rich library of built-in agent skills that cover the most common automation needs out of the box. Each skill is a self-contained plugin registered in the aibitat engine. When an agent run begins, only the skills that are enabled for the current workspace are loaded — and the [skill reranker](/agents/overview#intelligent-tool-selection-skill-reranker) further narrows the set to just those most relevant to the user's query. The sections below describe every available built-in skill, what it does, and any API keys or configuration it requires.
+
+---
+
+## Web Browsing
+
+**Plugin name:** `web-browsing`
+
+Searches the internet for real-time information — current news, live prices, weather, and anything not available in the workspace's local documents. The agent composes a search query, calls the configured search provider, and returns the top results as structured data with citations.
+
+### Search Providers
+
+The active provider is selected in **System Settings → Agent Skills → Web Search**. Each provider has its own API key environment variable:
+
+| Provider | Environment Variable | Notes |
+|---|---|---|
+| **DuckDuckGo** | *(none required)* | Default provider; no API key needed. |
+| **SerpApi** | `AGENT_SERPAPI_API_KEY`, `AGENT_SERPAPI_ENGINE` | Supports Google, Bing, Amazon, Google Images, Google Jobs, Google Scholar, and more via the `engine` parameter. |
+| **SearchApi** | `AGENT_SEARCHAPI_API_KEY`, `AGENT_SEARCHAPI_ENGINE` | Multi-engine provider (Google, Bing, YouTube, etc.). |
+| **Serper.dev** | `AGENT_SERPER_DEV_KEY` | Google-powered results; 2,500 free calls. |
+| **Bing Web Search** | `AGENT_BING_SEARCH_API_KEY` | Microsoft Azure Cognitive Services. |
+| **Baidu Search** | `AGENT_BAIDU_SEARCH_API_KEY` | Qianfan / Baidu AI Cloud web search. |
+| **Serply** | `AGENT_SERPLY_API_KEY` | Supports desktop/mobile device type and proxy location. |
+| **SearXNG** | `AGENT_SEARXNG_API_URL` | Self-hosted open-source metasearch engine; provide your instance URL. |
+| **Tavily** | `AGENT_TAVILY_API_KEY` | AI-optimized search API. |
+| **Exa** | `AGENT_EXA_API_KEY` | Neural search with full text content in results. |
+| **Perplexity** | `AGENT_PERPLEXITY_API_KEY` | AI-powered answer engine. |
+| **Brave Search** | `AGENT_BRAVE_API_KEY` | Privacy-respecting independent search index. |
+| **fastCRW** | `AGENT_CRW_API_KEY`, `AGENT_CRW_API_URL` *(optional)* | Commercial provider; set `AGENT_CRW_API_URL` for self-hosted deployments. |
+
+<Tip>
+  DuckDuckGo requires no configuration and is a solid default for getting started. Upgrade to a dedicated provider when you need higher rate limits or specialized search types.
+</Tip>
+
+---
+
+## Web Scraping
+
+**Plugin name:** `web-scraping`
+
+Fetches and reads the full text content of a specific URL. Unlike web browsing (which searches), web scraping visits an exact web address and returns its content. If the page content exceeds the model's context window, the skill automatically summarizes it before returning.
+
+No API keys are required. The skill delegates the actual HTTP fetch and content extraction to the AnythingLLM document collector service.
+
+---
+
+## SQL Agent
+
+**Plugin name:** `sql-agent`
+
+Connects to relational databases and executes read queries to answer questions about your data. The SQL Agent is composed of four sub-tools:
+
+| Sub-tool | What it does |
+|---|---|
+| `sql-agent-list-database` | Lists all configured database connections. |
+| `sql-agent-list-tables` | Lists the tables in a selected database. |
+| `sql-agent-get-table-schema` | Returns the column schema for a specific table. |
+| `sql-agent-query` | Executes a SQL SELECT query and returns results. |
+
+**Supported databases:** PostgreSQL, MySQL, and Microsoft SQL Server.
+
+Database connections are configured through the AnythingLLM UI under **System Settings → SQL Agent**. Each connection stores an engine type and a connection string; no environment variables are needed beyond what the database server itself requires (host, port, credentials).
+
+<Note>
+  The SQL Agent is designed for read operations. Destructive queries (DROP, DELETE, TRUNCATE) are not permitted by the agent.
+</Note>
+
+---
+
+## Create Files
+
+**Plugin name:** `create-files-agent`
+
+Generates downloadable files from content the agent produces. The agent selects the most appropriate file format based on the user's request and creates the file in the workspace output directory.
+
+**Supported file formats:**
+
+| Format | Description |
+|---|---|
+| **PDF** | Rich-text documents with formatted content. |
+| **Word (DOCX)** | Microsoft Word–compatible documents. |
+| **PowerPoint (PPTX)** | Slide presentations. |
+| **Excel (XLSX)** | Spreadsheets with tabular data. |
+| **Text** | Plain `.txt` files. |
+
+No API keys are required. File creation happens entirely on the server.
+
+<Tip>
+  To auto-approve file creation without user confirmation prompts, add the relevant skill names to the `AGENT_AUTO_APPROVED_SKILLS` environment variable:
+
+  ```bash
+  AGENT_AUTO_APPROVED_SKILLS=create-pdf-file,create-word-file
+  ```
+</Tip>
+
+---
+
+## Filesystem Agent
+
+**Plugin name:** `filesystem-agent`
+
+Provides the agent with the ability to interact with the server's filesystem. This is primarily useful for Desktop (non-Docker) deployments where the agent has safe, sandboxed access to local files.
+
+**Available sub-tools:**
+
+- `filesystem-read-text-file` — Read the contents of a text file.
+- `filesystem-read-multiple-files` — Read several files in one call.
+- `filesystem-write-text-file` — Write content to a text file.
+- `filesystem-edit-file` — Make targeted edits to an existing file.
+- `filesystem-create-directory` — Create a new directory.
+- `filesystem-list-directory` — List the contents of a directory.
+- `filesystem-move-file` — Move or rename a file.
+- `filesystem-copy-file` — Copy a file to a new location.
+- `filesystem-search-files` — Search for files by name or pattern.
+- `filesystem-get-file-info` — Get metadata about a file (size, timestamps, etc.).
+
+<Note>
+  File attachment operations (reading local paths for email attachments) are not supported in Docker environments.
+</Note>
+
+---
+
+## RAG Memory
+
+**Plugin name:** `rag-memory`
+
+Gives the agent two-way access to the workspace's vector database. The agent can **search** for relevant context in uploaded documents and previously stored memories, or **store** new information into long-term memory for future retrieval.
+
+| Action | Description |
+|---|---|
+| `search` | Performs a similarity search against the workspace's vector store and returns the most relevant context chunks. |
+| `store` | Embeds a text string and saves it to the workspace vector store as a persistent memory. |
+
+No API keys are required; the skill uses whatever embedding provider and vector database are configured for the workspace.
+
+---
+
+## Document Summarizer
+
+**Plugin name:** `document-summarizer`
+
+Lists all documents embedded in the current workspace and can generate a summary of any individual document. If the document's token count exceeds the model's context limit, the skill automatically splits and summarizes the content in chunks before producing a final summary.
+
+| Action | Description |
+|---|---|
+| `list` | Returns all workspace documents with their filenames and descriptions. |
+| `summarize` | Opens a specific document by filename and returns a condensed summary. |
+
+---
+
+## Create Chart
+
+**Plugin name:** `create-chart`
+
+Renders interactive data visualizations in the chat using [Recharts](https://recharts.org/). The agent generates a JSON dataset and sends it to the frontend to be rendered as an embedded chart.
+
+**Supported chart types:** `area`, `bar`, `line`, `composed`, `scatter`, `pie`, `radar`, `radialBar`, `treemap`, `funnel`.
+
+The chart is stored in the conversation history as a `rechartVisualize` type response, so it reappears when you scroll back through the chat.
+
+---
+
+## Chat History
+
+**Plugin name:** `chat-history`
+
+An internal plugin that persists every agent conversation to the AnythingLLM database. It also triggers automatic thread renaming after the first complete exchange. This plugin is always active and does not require any user configuration.
+
+---
+
+## Gmail
+
+**Plugin name:** `gmail-agent`
+
+Full inbox access and email composition via the Gmail API. The agent can read, search, draft, send, and manage email threads.
+
+**Capabilities:**
+- Get inbox and search emails
+- Read individual threads
+- Create, update, list, get, delete, and send drafts
+- Create draft replies and reply to threads
+- Send new emails
+- Manage threads: mark read/unread, move to trash, archive, or move to inbox
+- Get mailbox statistics
+
+Gmail integration uses OAuth 2.0. Configure your Google API credentials in **System Settings → Agent Skills → Gmail**.
+
+---
+
+## Google Calendar
+
+**Plugin name:** `google-calendar-agent`
+
+Manages Google Calendar events and calendars through a Google Apps Script deployment bridge. The agent communicates with your calendar via a deployment ID and API key that you configure in the UI.
+
+**Capabilities:**
+- List and inspect calendars
+- Get, list, and search events (by day, by date range, or upcoming)
+- Create events (quick-add or full-detail)
+- Update existing events
+- Set your attendance status on events
+
+Configure your Google Apps Script `deploymentId` and `apiKey` in **System Settings → Agent Skills → Google Calendar**.
+
+---
+
+## Outlook
+
+**Plugin name:** `outlook-agent`
+
+Full inbox access and email composition via the Microsoft Graph API. Supports both personal Microsoft accounts and organizational (Azure AD / Entra ID) accounts.
+
+**Capabilities:**
+- Get inbox and search emails
+- Read individual conversation threads
+- Create, update, list, delete, and send drafts (with reply support)
+- Send new emails (with reply support)
+- Get mailbox statistics
+
+Configure your Microsoft OAuth credentials (client ID, client secret, tenant ID for organizational auth) in **System Settings → Agent Skills → Outlook**.
+
+---
+
+## Request User Input
+
+**Plugin name:** `request-user-input`
+
+Pauses agent execution mid-run and asks the user a clarifying question before continuing. This allows multi-step workflows to gather additional information without starting a completely new conversation.
+
+This plugin is an internal utility used by the aibitat framework and is not configurable directly by end users.

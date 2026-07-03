@@ -1,0 +1,381 @@
+---
+title: "User Management and Admin API Endpoints"
+sidebarTitle: "Users & Admin"
+description: "REST API for managing users, invites, workspace user access, and admin preferences in multi-user AnythingLLM instances."
+---
+
+AnythingLLM supports a multi-user mode that unlocks role-based access control, invite-based registration, and per-workspace permissions. The Admin API lets you manage all of this programmatically — create and update users, generate invite links, configure which users can access specific workspaces, and adjust instance-wide preferences. The User Management endpoints provide a lighter-weight way to list users and issue temporary login tokens for SSO-style integrations.
+
+<Warning>
+  Most endpoints in this section require **multi-user mode** to be enabled first via the AnythingLLM UI. Calling them on a single-user instance returns `401 Instance is not in Multi-User mode. Method denied`. Additionally, all Admin endpoints require an API key with **admin role** privileges.
+</Warning>
+
+---
+
+## GET /v1/admin/is-multi-user-mode
+
+Check whether the current AnythingLLM instance is running in multi-user mode. Use this before calling other admin endpoints to avoid unnecessary `401` errors.
+
+### Response Fields
+
+<ResponseField name="isMultiUser" type="boolean">
+  `true` if multi-user mode is active, `false` otherwise.
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/admin/is-multi-user-mode \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/admin/users
+
+List all registered users on the instance.
+
+### Response Fields
+
+<ResponseField name="users" type="array">
+  <Expandable title="user object fields">
+    <ResponseField name="username" type="string">The user's login name.</ResponseField>
+    <ResponseField name="role" type="string">`"admin"` or `"default"`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/admin/users \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/admin/users/new
+
+Create a new user account with a username, password, and role.
+
+### Body Parameters
+
+<ParamField body="username" type="string" required>
+  Login username for the new account.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial password for the account.
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  User role: `"default"` for standard users or `"admin"` for administrators.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="user" type="object">
+  <Expandable title="user object fields">
+    <ResponseField name="id" type="integer">Database row ID for the new user.</ResponseField>
+    <ResponseField name="username" type="string">Login name.</ResponseField>
+    <ResponseField name="role" type="string">Assigned role.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">`null` on success or an error description.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/admin/users/new \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "sample-sam",
+    "password": "hunter2",
+    "role": "default"
+  }'
+```
+
+---
+
+## POST /v1/admin/users/\{id\}
+
+Update an existing user's settings. Only the fields you include are changed — all others remain as-is.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Database ID of the user to update.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="username" type="string">New login username.</ParamField>
+<ParamField body="password" type="string">New password.</ParamField>
+<ParamField body="role" type="string">New role: `"default"` or `"admin"`.</ParamField>
+<ParamField body="suspended" type="integer">`1` to suspend the user (block login), `0` to reinstate.</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the update was applied.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success or an error message.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/admin/users/3 \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "role": "admin",
+    "suspended": 0
+  }'
+```
+
+---
+
+## DELETE /v1/admin/users/\{id\}
+
+Permanently delete a user account by its database ID.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Database ID of the user to delete.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the deletion was successful.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success or an error message.</ResponseField>
+
+```bash
+curl -X DELETE https://your-instance.com/api/v1/admin/users/3 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/admin/invites
+
+List all invitation records on the instance, regardless of status (`pending` or `claimed`).
+
+### Response Fields
+
+<ResponseField name="invites" type="array">
+  <Expandable title="invite object fields">
+    <ResponseField name="id" type="integer">Invite database ID.</ResponseField>
+    <ResponseField name="status" type="string">`"pending"` or `"claimed"`.</ResponseField>
+    <ResponseField name="code" type="string">The unique invite code shared with the recipient.</ResponseField>
+    <ResponseField name="claimedBy" type="string | null">Username that claimed the invite, or `null` if unclaimed.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/admin/invites \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/admin/invite/new
+
+Generate a new invitation code. Optionally pre-assign the new user to specific workspaces.
+
+### Body Parameters
+
+<ParamField body="workspaceIds" type="array">
+  Array of workspace database IDs to automatically grant the invitee access to when they register. Example: `[1, 2, 45]`.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="invite" type="object">
+  <Expandable title="invite object fields">
+    <ResponseField name="id" type="integer">Invite database ID.</ResponseField>
+    <ResponseField name="status" type="string">`"pending"`</ResponseField>
+    <ResponseField name="code" type="string">The invite code to share.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">`null` on success or an error description.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/admin/invite/new \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"workspaceIds": [1, 2]}'
+```
+
+---
+
+## DELETE /v1/admin/invite/\{id\}
+
+Deactivate (soft-delete) an invite by its ID. The invite code becomes invalid but the record is preserved for auditing.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Database ID of the invite to deactivate.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the invite was deactivated.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success or an error message.</ResponseField>
+
+```bash
+curl -X DELETE https://your-instance.com/api/v1/admin/invite/7 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/admin/workspace-chats
+
+Retrieve all chat messages from across the entire system, ordered by most recent. Results are paginated via an offset parameter.
+
+### Body Parameters
+
+<ParamField body="offset" type="integer">
+  Page offset for pagination. Each page returns up to the system default number of chats. Omit for the first page.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Request status.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/admin/workspace-chats \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"offset": 0}'
+```
+
+---
+
+## POST /v1/admin/preferences
+
+Update instance-wide multi-user preferences. Only the keys you supply will be changed.
+
+### Body Parameters
+
+<ParamField body="support_email" type="string">
+  Support contact email shown to users within the interface.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether preferences were updated.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success or an error message.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/admin/preferences \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"support_email": "support@example.com"}'
+```
+
+---
+
+## GET /v1/admin/workspaces/\{workspaceId\}/users
+
+Retrieve the list of users who have explicit permission to access a specific workspace.
+
+### Path Parameters
+
+<ParamField path="workspaceId" type="string" required>
+  Database ID of the workspace to inspect.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="users" type="array">
+  <Expandable title="user-permission object fields">
+    <ResponseField name="userId" type="integer">User database ID.</ResponseField>
+    <ResponseField name="role" type="string">Permission level for this workspace (`"admin"` or `"member"`).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/admin/workspaces/5/users \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/admin/workspaces/\{workspaceSlug\}/manage-users
+
+Add users to a workspace's allowed list. By default this is an additive operation; pass `reset: true` to replace the entire permission list.
+
+### Path Parameters
+
+<ParamField path="workspaceSlug" type="string" required>
+  Slug of the workspace to modify.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="userIds" type="array" required>
+  Array of user database IDs to grant access to the workspace.
+</ParamField>
+
+<ParamField body="reset" type="boolean">
+  When `true`, the existing user list is cleared and replaced with the provided `userIds`. Defaults to `false` (additive).
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the operation succeeded.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success or an error message.</ResponseField>
+<ResponseField name="users" type="array">
+  Updated list of users with access, each including `userId`, `username`, and `role`.
+</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/admin/workspaces/product-docs/manage-users \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userIds": [1, 2, 4],
+    "reset": false
+  }'
+```
+
+---
+
+## GET /v1/users
+
+List all users on the instance. Available in the User Management API (does not require admin role in single-user mode).
+
+### Response Fields
+
+<ResponseField name="users" type="array">
+  <Expandable title="user object fields">
+    <ResponseField name="id" type="integer">User database ID.</ResponseField>
+    <ResponseField name="username" type="string">Login name.</ResponseField>
+    <ResponseField name="role" type="string">`"admin"` or `"default"`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/users \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/users/\{id\}/issue-auth-token
+
+Issue a short-lived authentication token for a specific user. The returned token and login path can be used to implement SSO-style "log in as user" flows without requiring the user's password.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Database ID of the user to issue a token for.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="token" type="string">The temporary authentication token.</ResponseField>
+<ResponseField name="loginPath" type="string">
+  Ready-to-use login path including the token as a query parameter (e.g. `/sso/simple?token=1234567890`).
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/users/2/issue-auth-token \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```

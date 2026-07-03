@@ -1,0 +1,260 @@
+---
+title: "Run AnythingLLM on Bare Metal Without Docker"
+sidebarTitle: "Bare Metal"
+description: "Set up AnythingLLM directly on Linux or macOS using Node.js and Yarn, without Docker. Covers dependencies, build steps, and running as a service."
+---
+
+Running AnythingLLM on bare metal means installing and launching it directly on your operating system without any container runtime. This approach gives you full control over the process environment, file permissions, and system integration — and is useful when Docker is unavailable or unwanted. The setup involves cloning the repository, building the React frontend, configuring the server environment, running Prisma database migrations, and starting two Node.js processes: the main server and the document collector.
+
+<Warning>
+  **This deployment method is not officially supported by the AnythingLLM core team.** It is provided as a community reference. You are fully responsible for securing your deployment, managing updates, and resolving any issues that arise. Questions specific to bare-metal deployments will not be answered by the core team. For a supported path, use the [Docker installation](/installation/docker) instead.
+</Warning>
+
+## Prerequisites
+
+| Requirement | Minimum Version | Notes |
+|---|---|---|
+| Node.js | v18 or higher | Required by the `engines` field in `package.json` |
+| Yarn | Any recent version | Used for dependency installation and workspace scripts |
+| Git | Any | For cloning the repository and pulling updates |
+| Disk space | 10 GB minimum | More if storing large documents or local models |
+| RAM | 2 GB minimum | 4 GB or more recommended |
+
+## Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the repo into the directory where you want AnythingLLM to live, as the OS user that will run the application:
+
+    ```bash
+    git clone git@github.com:Mintplex-Labs/anything-llm.git
+    cd anything-llm
+    ```
+  </Step>
+
+  <Step title="Install all dependencies">
+    Run the `setup` script from the repository root. This installs dependencies for all three workspaces (`server`, `collector`, and `frontend`) in a single step:
+
+    ```bash
+    yarn setup
+    ```
+
+    The `setup` script also copies the example `.env` files into place and runs the initial Prisma database generation and migration. After it completes, you will have:
+
+    - `server/.env.development` (copied from `server/.env.example`)
+    - `collector/.env` (copied from `collector/.env.example`)
+    - `docker/.env` (copied from `docker/.env.example`)
+    - `frontend/.env` (copied from `frontend/.env.example`)
+  </Step>
+
+  <Step title="Configure the server environment">
+    Copy the server environment file for production use:
+
+    ```bash
+    cp server/.env.example server/.env
+    ```
+
+    Open `server/.env` in your editor and set at minimum the `STORAGE_DIR` variable to an absolute path where AnythingLLM will store its database, uploaded documents, and vector indexes:
+
+    ```bash
+    STORAGE_DIR="/your/absolute/path/to/server/storage"
+    ```
+
+    This file will be read on every server start and can be updated while the service is stopped to change settings. The full list of available environment variables is documented in [`docker/.env.example`](https://github.com/Mintplex-Labs/anything-llm/blob/master/docker/.env.example).
+  </Step>
+
+  <Step title="Configure the frontend for production">
+    Edit `frontend/.env` and set `VITE_API_BASE` to `/api`. This tells the compiled frontend to call the API relative to wherever it is served from — required for production deployments:
+
+    ```bash
+    # frontend/.env
+    VITE_API_BASE='/api'
+    ```
+
+    Do not use the `http://localhost:3001/api` value here — that is only for local development.
+  </Step>
+
+  <Step title="Build the frontend">
+    Compile the React/Vite frontend into static files:
+
+    ```bash
+    cd frontend && yarn build
+    ```
+
+    This produces a `frontend/dist` directory containing the compiled HTML, CSS, and JavaScript. The build step only needs to be re-run when you update AnythingLLM or make frontend changes.
+  </Step>
+
+  <Step title="Copy the frontend build to the server">
+    Copy the compiled frontend assets into the server's `public` directory, which is where the Node.js server will serve them from:
+
+    ```bash
+    cp -R frontend/dist server/public
+    ```
+
+    After this step, `server/public/index.html` should exist. The server will serve the React app from this location.
+  </Step>
+
+  <Step title="Set up the database">
+    Run the Prisma migrations to create and initialise the SQLite database:
+
+    ```bash
+    cd server && npx prisma generate --schema=./prisma/schema.prisma
+    cd server && npx prisma migrate deploy --schema=./prisma/schema.prisma
+    ```
+
+    The first command generates the Prisma client. The second applies all migrations to create the database schema. Both commands must be run from the `server` directory, and should be re-run after every update that includes new migrations.
+  </Step>
+
+  <Step title="Start the server and collector">
+    AnythingLLM requires two separate processes running concurrently. Start each in its own terminal session (or as background processes):
+
+    ```bash
+    # Terminal 1 — main API server
+    cd server && NODE_ENV=production node index.js &
+
+    # Terminal 2 — document collector
+    cd collector && NODE_ENV=production node index.js &
+    ```
+
+    Both processes must be running for the full application to work. The server handles API requests, LLM calls, and the web UI. The collector handles document parsing and ingestion.
+
+    AnythingLLM is now available at `http://localhost:3001`.
+  </Step>
+</Steps>
+
+## Updating AnythingLLM
+
+To update to the latest version, pull the new code and repeat the build and migration steps:
+
+```bash
+# Stop running processes first
+pkill node
+
+# Pull latest changes
+git pull origin master
+
+# Reinstall dependencies in case packages changed
+cd $HOME/anything-llm/collector && yarn
+cd $HOME/anything-llm/server && yarn
+
+# Rebuild the frontend
+cd $HOME/anything-llm/frontend && yarn && yarn build && cd $HOME/anything-llm
+
+# Copy new frontend build
+rm -rf server/public
+cp -r frontend/dist server/public
+
+# Run any new database migrations
+cd $HOME/anything-llm/server && npx prisma migrate deploy --schema=./prisma/schema.prisma
+cd $HOME/anything-llm/server && npx prisma generate
+
+# Restart both processes
+cd $HOME/anything-llm/server
+(NODE_ENV=production node index.js) &> /logs/server.log &
+
+cd $HOME/anything-llm/collector
+(NODE_ENV=production node index.js) &> /logs/collector.log &
+```
+
+<Warning>
+  Always run `pkill node` before updating to avoid running multiple AnythingLLM processes simultaneously, which can cause database conflicts and unpredictable behavior.
+</Warning>
+
+### Example Update Script
+
+The following shell script automates the full update procedure. Save it as `update-anythingllm.sh` and run it whenever you want to update:
+
+```bash
+#!/bin/bash
+
+cd $HOME/anything-llm &&\
+git checkout . &&\
+git pull origin master &&\
+echo "HEAD pulled to commit $(git log -1 --pretty=format:"%h" | tail -n 1)"
+
+echo "Freezing current ENVs"
+curl -I "http://localhost:3001/api/env-dump" | head -n 1|cut -d$' ' -f2
+
+echo "Rebuilding Frontend"
+cd $HOME/anything-llm/frontend && yarn && yarn build && cd $HOME/anything-llm
+
+echo "Copying to Server Public"
+rm -rf server/public
+cp -r frontend/dist server/public
+
+echo "Killing node processes"
+pkill node
+
+echo "Installing collector dependencies"
+cd $HOME/anything-llm/collector && yarn
+
+echo "Installing server dependencies & running migrations"
+cd $HOME/anything-llm/server && yarn
+cd $HOME/anything-llm/server && npx prisma migrate deploy --schema=./prisma/schema.prisma
+cd $HOME/anything-llm/server && npx prisma generate
+
+echo "Booting up services."
+truncate -s 0 /logs/server.log
+truncate -s 0 /logs/collector.log
+
+cd $HOME/anything-llm/server
+(NODE_ENV=production node index.js) &> /logs/server.log &
+
+cd $HOME/anything-llm/collector
+(NODE_ENV=production node index.js) &> /logs/collector.log &
+```
+
+## Using Nginx as a Reverse Proxy
+
+If you want to serve AnythingLLM on port 80 or behind a domain name, use Nginx as a reverse proxy. Streaming chat responses and agent protocol both require WebSocket support — the configuration below handles both:
+
+```nginx
+server {
+   # Enable WebSocket connections for agent protocol.
+   location ~* ^/api/agent-invocation/(.*) {
+      proxy_pass http://0.0.0.0:3001;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "Upgrade";
+   }
+
+   listen 80;
+   server_name your-domain.example.com;
+
+   location / {
+      # Prevent timeouts on long-running LLM requests.
+      proxy_connect_timeout       605;
+      proxy_send_timeout          605;
+      proxy_read_timeout          605;
+      send_timeout                605;
+      keepalive_timeout           605;
+
+      # Enable readable HTTP streaming for LLM streamed responses.
+      proxy_buffering off;
+      proxy_cache off;
+
+      proxy_pass http://0.0.0.0:3001;
+   }
+}
+```
+
+Replace `your-domain.example.com` with your actual domain. If you plan to use HTTPS, configure SSL termination in Nginx and set `ENABLE_HTTPS` in the server `.env` if you want the Node server itself to handle TLS instead.
+
+## Running as a System Service
+
+For production deployments, you should manage both processes with a process manager like `systemd` or `pm2` rather than running them in background shell sessions.
+
+### Using pm2
+
+```bash
+# Install pm2 globally
+npm install -g pm2
+
+# Start both services
+pm2 start "cd /path/to/anything-llm/server && NODE_ENV=production node index.js" --name anythingllm-server
+pm2 start "cd /path/to/anything-llm/collector && NODE_ENV=production node index.js" --name anythingllm-collector
+
+# Save the process list so they restart on reboot
+pm2 save
+pm2 startup
+```

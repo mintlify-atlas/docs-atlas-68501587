@@ -1,0 +1,595 @@
+---
+title: "Workspace API Endpoints — Chat, Manage, and Embed"
+sidebarTitle: "Workspaces"
+description: "REST API endpoints to create, update, and delete workspaces, run chats, manage embeddings, and work with workspace threads in AnythingLLM."
+---
+
+Workspaces are the core organisational unit in AnythingLLM. Each workspace holds its own set of embedded documents, LLM settings, chat history, and threads. The API lets you manage every aspect of a workspace programmatically — from initial creation and document embedding to running chat conversations and performing direct vector similarity searches. All requests must include a valid Bearer token in the `Authorization` header.
+
+<Note>
+  All API endpoints are prefixed with `/api`. For a self-hosted instance the full
+  base URL is typically `http://localhost:3001/api/v1/...`.
+</Note>
+
+---
+
+## POST /v1/workspace/new
+
+Create a new workspace. Returns the created workspace object on success.
+
+### Body Parameters
+
+<ParamField body="name" type="string" required>
+  Display name for the new workspace.
+</ParamField>
+
+<ParamField body="similarityThreshold" type="number">
+  Minimum vector-similarity score (0–1) that a document chunk must reach before it is included in a response context. Defaults to `0.25`.
+</ParamField>
+
+<ParamField body="openAiTemp" type="number">
+  LLM temperature override for this workspace (0–1). Leave `null` to use the system default.
+</ParamField>
+
+<ParamField body="openAiHistory" type="integer">
+  Number of previous chat turns to include in the LLM context window. Default `20`.
+</ParamField>
+
+<ParamField body="openAiPrompt" type="string">
+  Custom system prompt applied to every conversation in this workspace.
+</ParamField>
+
+<ParamField body="queryRefusalResponse" type="string">
+  Custom message returned when the workspace has no relevant context to answer a query-mode question.
+</ParamField>
+
+<ParamField body="chatMode" type="string">
+  Default chat mode: `"chat"` (uses general LLM knowledge + documents) or `"query"` (documents only).
+</ParamField>
+
+<ParamField body="topN" type="integer">
+  Maximum number of document chunks to retrieve per query. Default `4`.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="workspace" type="object">
+  <Expandable title="workspace fields">
+    <ResponseField name="id" type="integer">Database row ID.</ResponseField>
+    <ResponseField name="name" type="string">Workspace display name.</ResponseField>
+    <ResponseField name="slug" type="string">URL-safe unique identifier derived from the name.</ResponseField>
+    <ResponseField name="createdAt" type="string">ISO timestamp of creation.</ResponseField>
+    <ResponseField name="openAiTemp" type="number | null">Temperature setting.</ResponseField>
+    <ResponseField name="openAiHistory" type="integer">Chat history turns.</ResponseField>
+    <ResponseField name="openAiPrompt" type="string | null">Custom system prompt.</ResponseField>
+    <ResponseField name="lastUpdatedAt" type="string">ISO timestamp of last update.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="message" type="string">`"Workspace created"` on success.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/new \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Product Docs",
+    "similarityThreshold": 0.7,
+    "openAiTemp": 0.4,
+    "openAiHistory": 20,
+    "chatMode": "chat",
+    "topN": 4
+  }'
+```
+
+---
+
+## GET /v1/workspaces
+
+Return a list of all workspaces on the instance.
+
+### Response Fields
+
+<ResponseField name="workspaces" type="array">
+  Array of workspace objects. Each object contains the same fields as the create response plus a `threads` array.
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/workspaces \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/workspace/\{slug\}
+
+Retrieve a single workspace by its unique slug, including embedded documents and threads.
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique URL slug of the workspace (e.g. `product-docs`).
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="workspace" type="array">
+  Single-element array containing the full workspace object with `documents` and `threads` arrays.
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/workspace/product-docs \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/workspace/\{slug\}/update
+
+Update one or more settings on an existing workspace. Only the fields you include will be changed.
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the workspace to update.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="name" type="string">New display name.</ParamField>
+<ParamField body="openAiTemp" type="number">Updated temperature (0–1).</ParamField>
+<ParamField body="openAiHistory" type="integer">Number of history turns to retain.</ParamField>
+<ParamField body="openAiPrompt" type="string">Updated system prompt.</ParamField>
+
+### Response Fields
+
+<ResponseField name="workspace" type="object">Updated workspace object including all current settings and embedded documents.</ResponseField>
+<ResponseField name="message" type="string | null">Error string if the update failed, otherwise `null`.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/update \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Product Documentation",
+    "openAiTemp": 0.2,
+    "openAiPrompt": "Answer in a concise, technical tone."
+  }'
+```
+
+---
+
+## DELETE /v1/workspace/\{slug\}
+
+Permanently delete a workspace and all its embedded document associations. This does **not** delete the source documents from the library.
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the workspace to delete.
+</ParamField>
+
+```bash
+curl -X DELETE https://your-instance.com/api/v1/workspace/product-docs \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/workspace/\{slug\}/chats
+
+Return the full chat history for a workspace, optionally filtered by an external session identifier.
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the workspace.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="apiSessionId" type="string">
+  Filter results to a specific external session ID passed during chat requests.
+</ParamField>
+
+<ParamField query="limit" type="integer">
+  Maximum number of messages to return. Default `100`.
+</ParamField>
+
+<ParamField query="orderBy" type="string">
+  Sort order: `"asc"` or `"desc"`. Defaults to ascending.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="history" type="array">
+  <Expandable title="history message fields">
+    <ResponseField name="role" type="string">`"user"` or `"assistant"`.</ResponseField>
+    <ResponseField name="content" type="string">Message text.</ResponseField>
+    <ResponseField name="sentAt" type="integer">Unix timestamp of the message.</ResponseField>
+    <ResponseField name="sources" type="array">Array of source document snippets (assistant messages only).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl "https://your-instance.com/api/v1/workspace/product-docs/chats?limit=50&orderBy=desc" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/workspace/\{slug\}/update-embeddings
+
+Add or remove documents from a workspace. Document paths are relative to the top-level `documents` storage directory (i.e. omit the leading `documents/` prefix).
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the workspace.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="adds" type="array">
+  Array of document path strings to embed into the workspace. Example: `["custom-documents/my-pdf.pdf-hash.json"]`.
+</ParamField>
+
+<ParamField body="deletes" type="array">
+  Array of document path strings to remove from the workspace embeddings.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="workspace" type="object">Updated workspace object with the new `documents` array reflecting the changes.</ResponseField>
+<ResponseField name="message" type="string | null">`null` on success or an error description.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/update-embeddings \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "adds": ["custom-documents/release-notes.pdf-abc123.json"],
+    "deletes": ["custom-documents/old-notes.txt-def456.json"]
+  }'
+```
+
+---
+
+## POST /v1/workspace/\{slug\}/update-pin
+
+Toggle the pinned state of a specific document inside a workspace. Pinned documents are always injected into the LLM context regardless of vector search results.
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the workspace.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="docPath" type="string" required>
+  The document path as stored in the workspace (e.g. `custom-documents/my-pdf.pdf-hash.json`).
+</ParamField>
+
+<ParamField body="pinStatus" type="boolean" required>
+  `true` to pin the document, `false` to unpin it.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="message" type="string">`"Pin status updated successfully"` on success.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/update-pin \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "docPath": "custom-documents/release-notes.pdf-abc123.json",
+    "pinStatus": true
+  }'
+```
+
+---
+
+## POST /v1/workspace/\{slug\}/chat
+
+Send a message to a workspace and receive a complete (non-streaming) response. Supports `chat`, `query`, and `automatic` modes, as well as inline image and document attachments.
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the workspace to chat with.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="message" type="string" required>
+  The user's message or question.
+</ParamField>
+
+<ParamField body="mode" type="string">
+  Conversation mode:
+  - `"chat"` — uses LLM general knowledge plus embedded documents with rolling history.
+  - `"query"` — only answers from embedded documents; ignores chat history.
+  - `"automatic"` — uses tool-calling when the LLM provider supports it, without needing to invoke `@agent`.
+  Defaults to `"chat"`.
+</ParamField>
+
+<ParamField body="sessionId" type="string">
+  An arbitrary external identifier used to partition chat history. Useful for multi-tenant deployments where you want per-user history.
+</ParamField>
+
+<ParamField body="attachments" type="array">
+  <Expandable title="attachment object fields">
+    <ParamField body="name" type="string">Filename of the attachment.</ParamField>
+    <ParamField body="mime" type="string">
+      MIME type. Use `"application/anythingllm-document"` to have the file parsed as text before injection. Any other MIME is passed directly to the LLM as an image.
+    </ParamField>
+    <ParamField body="contentString" type="string">Base64-encoded data URI of the file content.</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="reset" type="boolean">
+  Set to `true` to clear the existing chat history for this session before sending. Default `false`.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="id" type="string">Unique ID of the chat exchange.</ResponseField>
+<ResponseField name="type" type="string">`"textResponse"` on success or `"abort"` on failure.</ResponseField>
+<ResponseField name="textResponse" type="string">The LLM's response text.</ResponseField>
+<ResponseField name="sources" type="array">Array of source document chunks used to generate the answer.</ResponseField>
+<ResponseField name="close" type="boolean">Always `true` for non-streaming responses.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success, or a description of the failure.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/chat \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What changed in the latest release?",
+    "mode": "query",
+    "sessionId": "user-session-42"
+  }'
+```
+
+---
+
+## POST /v1/workspace/\{slug\}/stream-chat
+
+Send a message and receive the response as a Server-Sent Events (SSE) stream. Each event is a JSON object with a `textResponseChunk` type. The final event carries `"close": true` and the full `sources` array.
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the workspace to chat with.
+</ParamField>
+
+### Body Parameters
+
+Identical to `POST /v1/workspace/{slug}/chat` — `message`, `mode`, `sessionId`, `attachments`, and `reset`.
+
+### Response
+
+The response `Content-Type` is `text/event-stream`. Each `data:` line contains a JSON object:
+
+<ResponseField name="id" type="string">Shared ID for all chunks in this response.</ResponseField>
+<ResponseField name="type" type="string">`"textResponseChunk"` for content or `"abort"` on error.</ResponseField>
+<ResponseField name="textResponse" type="string">Text fragment for this chunk.</ResponseField>
+<ResponseField name="sources" type="array">Populated only in the final chunk (`close: true`).</ResponseField>
+<ResponseField name="close" type="boolean">`true` signals the end of the stream.</ResponseField>
+<ResponseField name="error" type="string | null">Error string or `null`.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/stream-chat \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "message": "Summarise the architecture overview.",
+    "mode": "chat"
+  }'
+```
+
+---
+
+## POST /v1/workspace/\{slug\}/vector-search
+
+Perform a raw vector similarity search against the workspace's embedded documents without invoking the LLM. Returns the most similar document chunks along with their distance scores.
+
+### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the workspace to search.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="query" type="string" required>
+  The natural-language query string to embed and search with.
+</ParamField>
+
+<ParamField body="topN" type="integer">
+  Number of results to return. Default `4`.
+</ParamField>
+
+<ParamField body="scoreThreshold" type="number">
+  Minimum similarity score (0–1) a chunk must have to appear in results.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="results" type="array">
+  <Expandable title="result object fields">
+    <ResponseField name="id" type="string">Unique vector ID of the chunk.</ResponseField>
+    <ResponseField name="text" type="string">Raw text content of the document chunk.</ResponseField>
+    <ResponseField name="metadata" type="object">Document metadata including `title`, `url`, `author`, `wordCount`, and `tokenCount`.</ResponseField>
+    <ResponseField name="distance" type="number">Raw vector distance (lower = more similar).</ResponseField>
+    <ResponseField name="score" type="number">Normalised similarity score (higher = more similar).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/vector-search \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "authentication flow",
+    "topN": 5,
+    "scoreThreshold": 0.6
+  }'
+```
+
+---
+
+## Workspace Thread Endpoints
+
+Threads are isolated conversation contexts inside a workspace. They share the workspace's documents and settings but maintain independent chat histories.
+
+---
+
+### POST /v1/workspace/\{slug\}/thread/new
+
+Create a new thread inside a workspace.
+
+#### Path Parameters
+
+<ParamField path="slug" type="string" required>
+  Unique slug of the parent workspace.
+</ParamField>
+
+#### Body Parameters
+
+<ParamField body="name" type="string">Display name for the thread. Auto-generated if omitted.</ParamField>
+<ParamField body="slug" type="string">Custom slug for the thread. Auto-generated if omitted.</ParamField>
+<ParamField body="userId" type="integer">Associate the thread with a specific user ID (multi-user mode).</ParamField>
+
+#### Response Fields
+
+<ResponseField name="thread" type="object">
+  <Expandable title="thread fields">
+    <ResponseField name="id" type="integer">Thread database ID.</ResponseField>
+    <ResponseField name="name" type="string">Thread display name.</ResponseField>
+    <ResponseField name="slug" type="string">Thread slug used in subsequent requests.</ResponseField>
+    <ResponseField name="user_id" type="integer | null">Associated user ID.</ResponseField>
+    <ResponseField name="workspace_id" type="integer">Parent workspace ID.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/thread/new \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Release Q3 Discussion"}'
+```
+
+---
+
+### POST /v1/workspace/\{slug\}/thread/\{threadSlug\}/update
+
+Update the display name of an existing thread.
+
+#### Path Parameters
+
+<ParamField path="slug" type="string" required>Workspace slug.</ParamField>
+<ParamField path="threadSlug" type="string" required>Thread slug to update.</ParamField>
+
+#### Body Parameters
+
+<ParamField body="name" type="string" required>New display name for the thread.</ParamField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/thread/release-q3-discussion/update \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Q3 Release Notes Review"}'
+```
+
+---
+
+### DELETE /v1/workspace/\{slug\}/thread/\{threadSlug\}
+
+Permanently delete a thread and its chat history.
+
+#### Path Parameters
+
+<ParamField path="slug" type="string" required>Workspace slug.</ParamField>
+<ParamField path="threadSlug" type="string" required>Thread slug to delete.</ParamField>
+
+```bash
+curl -X DELETE https://your-instance.com/api/v1/workspace/product-docs/thread/release-q3-discussion \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+### GET /v1/workspace/\{slug\}/thread/\{threadSlug\}/chats
+
+Retrieve the full message history for a specific thread.
+
+#### Path Parameters
+
+<ParamField path="slug" type="string" required>Workspace slug.</ParamField>
+<ParamField path="threadSlug" type="string" required>Thread slug.</ParamField>
+
+#### Response Fields
+
+<ResponseField name="history" type="array">
+  Array of `{role, content, sentAt, sources}` message objects — same schema as workspace-level chats.
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/workspace/product-docs/thread/release-q3-discussion/chats \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+### POST /v1/workspace/\{slug\}/thread/\{threadSlug\}/chat
+
+Send a non-streaming message to a workspace thread.
+
+#### Path Parameters
+
+<ParamField path="slug" type="string" required>Workspace slug.</ParamField>
+<ParamField path="threadSlug" type="string" required>Thread slug.</ParamField>
+
+#### Body Parameters
+
+<ParamField body="message" type="string" required>The user message.</ParamField>
+<ParamField body="mode" type="string">`"chat"` or `"query"`. Default `"chat"`.</ParamField>
+<ParamField body="userId" type="integer">Associate this message with a user ID.</ParamField>
+<ParamField body="attachments" type="array">Inline file attachments — same structure as workspace chat.</ParamField>
+<ParamField body="reset" type="boolean">Clear thread history before this message. Default `false`.</ParamField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/thread/release-q3-discussion/chat \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What are the breaking changes?",
+    "mode": "query"
+  }'
+```
+
+---
+
+### POST /v1/workspace/\{slug\}/thread/\{threadSlug\}/stream-chat
+
+Send a streaming SSE message to a workspace thread. Response format and parameters are identical to the workspace-level `stream-chat` endpoint.
+
+#### Path Parameters
+
+<ParamField path="slug" type="string" required>Workspace slug.</ParamField>
+<ParamField path="threadSlug" type="string" required>Thread slug.</ParamField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/workspace/product-docs/thread/release-q3-discussion/stream-chat \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "message": "Summarise the thread so far.",
+    "mode": "chat"
+  }'
+```

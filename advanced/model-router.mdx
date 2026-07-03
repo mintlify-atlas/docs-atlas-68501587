@@ -1,0 +1,182 @@
+---
+title: "Dynamic Model Router: Auto-Select the Best LLM"
+sidebarTitle: "Model Router"
+description: "AnythingLLM's Model Router automatically routes each chat to the optimal LLM provider and model based on rules you define—balancing cost, speed, and capability."
+---
+
+The Model Router lets you configure rules that automatically direct each incoming chat message to the most appropriate LLM provider and model—without the user lifting a finger. Instead of locking a workspace to a single model, you define a prioritized ruleset: simple factual queries go to a fast, cheap model while complex multi-step reasoning escalates to GPT-4o or Claude. The router evaluates every rule in priority order on each new message, picks the first match, and then sticks with that model for a configurable cooldown window so follow-up messages in the same conversation stay consistent.
+
+## How It Works
+
+Every time a chat message arrives in a router-enabled workspace, the `ModelRouterService` runs a two-phase evaluation:
+
+1. **Calculated rules** — deterministic conditions evaluated locally in milliseconds (no LLM call required). These check properties of the current conversation context such as prompt content, token count, message count, current hour, or whether the message contains an image attachment.
+2. **LLM rules** — a natural-language description of when the rule should fire. AnythingLLM sends a lightweight classification request to the fallback model asking which rule (if any) best matches the user's prompt. Results are cached for the full sticky window so you're never charged for repeated classification calls on the same topic.
+
+If no rule matches, the router falls back to a configurable **fallback provider and model** you set when creating the router.
+
+### Sticky Routing
+
+Once a rule fires, the resolved model "sticks" for a configurable cooldown period (default: **300 seconds / 5 minutes**). Every follow-up message in the same user–workspace–thread context reuses the same model without re-running rules. The TTL resets on each new message, so an active conversation keeps the same model "hot." When the window expires and no new rule matches, the router falls back to the default model.
+
+<Note>
+  The Model Router is a **multi-user / Docker** feature. You must have at least **two distinct LLM providers** configured in System Settings before creating a router. The router cannot route between models on the same provider alone—it needs a second provider to route to.
+</Note>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Cost Optimization" icon="circle-dollar-to-slot">
+    Route quick factual or greeting messages to a cheap, fast model (e.g., `gpt-4o-mini` or `gemini-2.0-flash-lite`) and reserve expensive frontier models for complex reasoning tasks.
+  </Card>
+  <Card title="Capability Matching" icon="sliders">
+    Automatically escalate to a vision-capable model when an image attachment is present, or switch to a code-specialized model when the prompt contains programming keywords.
+  </Card>
+  <Card title="Time-Based Routing" icon="clock">
+    Send after-hours traffic to a local Ollama model to avoid cloud API costs during low-priority windows, then route back to a cloud model during business hours.
+  </Card>
+  <Card title="Long-Context Handling" icon="file-lines">
+    Detect when conversation token counts exceed a threshold and automatically switch to a model with a larger context window before the conversation gets truncated.
+  </Card>
+</CardGroup>
+
+## Setting Up a Model Router
+
+<Steps>
+  <Step title="Open the Model Router settings">
+    Navigate to **System Settings → Model Router** in the AnythingLLM admin panel. Click **New Router** to open the creation form.
+  </Step>
+  <Step title="Name your router and set the fallback model">
+    Give the router a descriptive name (up to 255 characters). Select the **fallback provider** and **fallback model** that will be used whenever no rule matches. This is also the model used for LLM-type rule classification.
+
+    Optionally set a **cooldown (seconds)** between 0 and 3600. This controls how long a matched route stays "sticky" before the router re-evaluates rules. The default is 300 seconds (5 minutes).
+  </Step>
+  <Step title="Add routing rules">
+    Click **Add Rule** and configure each rule (see [Rule Types](#rule-types) below). Rules are evaluated in ascending **priority** order—lower numbers run first.
+  </Step>
+  <Step title="Assign the router to a workspace">
+    Open the workspace settings for any workspace and select your router from the **Model Router** dropdown. All chats in that workspace will now be routed automatically.
+  </Step>
+</Steps>
+
+## Rule Types
+
+The router supports two rule types, controlled by the `type` field: `calculated` and `llm`.
+
+### Calculated Rules
+
+Calculated rules evaluate deterministic conditions against the live conversation context. They run instantly on every message at zero extra cost. A rule can have multiple conditions combined with `AND` logic.
+
+**Available context properties:**
+
+| Property | Type | Description |
+|---|---|---|
+| `promptContent` | string | The full text of the user's current message |
+| `conversationTokenCount` | number | Estimated token count for the full context (system prompt + history + current message) |
+| `conversationMessageCount` | number | Total number of messages in the conversation so far (including the current one) |
+| `currentHour` | number | The current UTC hour (0–23) |
+| `hasImageAttachment` | string | `"true"` if the message includes an image attachment, otherwise `"false"` |
+
+**Available comparators:**
+
+| Comparator | Applies to | Description |
+|---|---|---|
+| `contains` | string | Prompt contains any of the comma-separated keywords (case-insensitive) |
+| `matches` | string | Prompt matches a regex pattern (e.g., `/code\|function\|bug/i`) |
+| `eq` / `neq` | string, number | Equals / not equals |
+| `gt` / `gte` | number | Greater than / greater than or equal |
+| `lt` / `lte` | number | Less than / less than or equal |
+| `between` | number | Value is between two comma-separated numbers (inclusive) |
+
+**Example: Route code questions to a specialized model**
+
+```json
+{
+  "type": "calculated",
+  "title": "code_questions",
+  "condition_logic": "AND",
+  "conditions": [
+    {
+      "property": "promptContent",
+      "comparator": "contains",
+      "value": "code, function, bug, error, debug, python, javascript"
+    }
+  ],
+  "route_provider": "openai",
+  "route_model": "gpt-4o",
+  "priority": 1
+}
+```
+
+**Example: Escalate long conversations to a large-context model**
+
+```json
+{
+  "type": "calculated",
+  "title": "long_context",
+  "condition_logic": "AND",
+  "conditions": [
+    {
+      "property": "conversationTokenCount",
+      "comparator": "gte",
+      "value": "8000"
+    }
+  ],
+  "route_provider": "anthropic",
+  "route_model": "claude-sonnet-4-6",
+  "priority": 2
+}
+```
+
+### LLM Rules
+
+LLM rules use your fallback model to classify the user's prompt against a plain-English description. Write a natural-language description of what kinds of messages should trigger this rule—the model decides at runtime.
+
+Classification results are cached for the full sticky window (matching results) or a 30-second cooldown (no-match results) to avoid redundant API calls.
+
+**Example: Route research questions to a web-browsing capable model**
+
+```json
+{
+  "type": "llm",
+  "title": "research_queries",
+  "description": "The user is asking for current events, news, recent information, or wants to research a topic that would benefit from real-time web search.",
+  "route_provider": "openai",
+  "route_model": "gpt-4o",
+  "priority": 3
+}
+```
+
+<Tip>
+  Rule titles must be **lowercase letters, numbers, and underscores only** (e.g., `code_questions`, `simple_greetings`). Each title must be unique within a router.
+</Tip>
+
+## Rule Priority and Evaluation Order
+
+Rules are evaluated in ascending priority order. The **first rule that matches** wins—remaining rules are skipped. Assign lower priority numbers to the most specific or highest-importance rules.
+
+```
+Priority 1: code_questions     → openai/gpt-4o
+Priority 2: long_context       → anthropic/claude-sonnet-4-6
+Priority 3: research_queries   → openai/gpt-4o
+[No match] → fallback          → ollama/llama3.2 (your configured fallback)
+```
+
+## Fallback Model
+
+The fallback provider and model are used in two scenarios:
+1. No rule matched and the sticky window has expired (or was never set).
+2. LLM rules need to classify the prompt—the classification itself always uses the fallback model.
+
+<Warning>
+  If you use LLM-type rules, ensure your fallback model is a capable instruction-following model. Very small or quantized local models may produce unreliable classifications.
+</Warning>
+
+## Routing Metadata in Chat
+
+When the router switches models mid-conversation, the AnythingLLM UI displays a small routing notification in the chat so users know which model responded. Notifications fire when:
+- A rule matches for the first time in a conversation.
+- The model changes from one turn to the next.
+- The conversation falls back from a rule-matched model to the fallback model.
+
+The notification is **suppressed** if the very first message in a conversation already uses the fallback (that's just the default behavior, not a routing event).

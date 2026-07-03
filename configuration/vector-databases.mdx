@@ -1,0 +1,210 @@
+---
+title: "Configure Vector Databases in AnythingLLM"
+sidebarTitle: "Vector Databases"
+description: "Connect AnythingLLM to 11 vector databases including LanceDB (built-in), Chroma, Pinecone, Qdrant, Weaviate, Milvus, and pgvector."
+---
+
+Every time AnythingLLM embeds a document chunk, it writes the resulting vector alongside the source text and metadata to a vector database. When a user sends a chat message, AnythingLLM converts the query into a vector with the same embedding model and performs a similarity search against that database to retrieve the most relevant context before calling the LLM. The vector database you choose affects storage capacity, query latency, scalability, and operational complexity — so it is worth picking the right one for your deployment size and infrastructure.
+
+<Tip>
+  **For local or single-user deployments, LanceDB is the default and requires zero configuration.** It stores all data inside your `STORAGE_DIR` directory with no external process needed. Only switch to an external vector database if you need multi-node scalability, advanced filtering, or enterprise features.
+</Tip>
+
+<Note>
+  Switching from one vector database to another requires re-embedding all documents in every workspace. The vectors stored in the old database cannot be migrated automatically. Plan your database choice before ingesting large document collections.
+</Note>
+
+## Selecting a Vector Database
+
+Set the `VECTOR_DB` environment variable to the provider identifier, then supply the connection variables for that provider. Restart AnythingLLM after any change.
+
+```bash
+# Example: switch to Qdrant
+VECTOR_DB="qdrant"
+QDRANT_ENDPOINT="http://localhost:6333"
+QDRANT_API_KEY=your-api-key
+```
+
+---
+
+## Supported Vector Databases
+
+<AccordionGroup>
+  <Accordion title="LanceDB (default — built-in)">
+    LanceDB is a high-performance columnar vector database embedded directly into the AnythingLLM process. It requires no external server, no ports, and no credentials — data is written to the `STORAGE_DIR` directory on disk.
+
+    ```bash
+    VECTOR_DB="lancedb"
+    ```
+
+    That is the entire configuration. LanceDB scales well for single-server deployments handling thousands of workspaces and millions of vectors.
+
+    **Best for:** Local use, single-user deployments, development, and any scenario where operational simplicity is the priority.
+  </Accordion>
+
+  <Accordion title="Chroma (self-hosted)">
+    [Chroma](https://www.trychroma.com/) is an open-source vector database that you run alongside AnythingLLM, either locally or in a container.
+
+    ```bash
+    VECTOR_DB="chroma"
+    CHROMA_ENDPOINT='http://host.docker.internal:8000'
+    # Optional auth header and key if your Chroma server requires authentication:
+    CHROMA_API_HEADER="X-Api-Key"
+    CHROMA_API_KEY="sk-123abc"
+    ```
+
+    Start a local Chroma instance with:
+    ```bash
+    docker run -p 8000:8000 chromadb/chroma
+    ```
+
+    **Best for:** Teams wanting a self-hosted, open-source option with a familiar Python SDK and easy local setup.
+  </Accordion>
+
+  <Accordion title="Chroma Cloud">
+    [Chroma Cloud](https://trychroma.com/cloud) is the managed, hosted version of Chroma.
+
+    ```bash
+    VECTOR_DB="chromacloud"
+    CHROMACLOUD_API_KEY="ck-your-api-key"
+    CHROMACLOUD_TENANT=your-tenant-id
+    CHROMACLOUD_DATABASE=your-database-name
+    ```
+
+    Obtain your API key and tenant/database identifiers from the [Chroma Cloud dashboard](https://trychroma.com/cloud).
+
+    **Best for:** Teams that want Chroma without managing infrastructure.
+  </Accordion>
+
+  <Accordion title="Pinecone">
+    [Pinecone](https://www.pinecone.io/) is a fully managed cloud vector database with a generous free tier and strong global availability.
+
+    ```bash
+    VECTOR_DB="pinecone"
+    PINECONE_API_KEY=your-api-key
+    PINECONE_INDEX=your-index-name
+    ```
+
+    Create your index in the [Pinecone console](https://app.pinecone.io/) before connecting. Ensure the index dimension matches the output dimension of your embedding model (e.g., `1536` for `text-embedding-ada-002`).
+
+    **Best for:** Cloud-first teams that want zero infrastructure management and built-in replication.
+  </Accordion>
+
+  <Accordion title="Qdrant">
+    [Qdrant](https://qdrant.tech/) is a high-performance, Rust-based open-source vector database available as a self-hosted binary, Docker image, or managed cloud service.
+
+    ```bash
+    VECTOR_DB="qdrant"
+    QDRANT_ENDPOINT="http://localhost:6333"
+    QDRANT_API_KEY=your-api-key
+    ```
+
+    `QDRANT_API_KEY` is only required for Qdrant Cloud or self-hosted instances secured with an API key. For unauthenticated local instances, omit it.
+
+    Start Qdrant locally:
+    ```bash
+    docker run -p 6333:6333 qdrant/qdrant
+    ```
+
+    **Best for:** High-throughput workloads, teams wanting a fast self-hosted option with rich payload filtering.
+  </Accordion>
+
+  <Accordion title="Weaviate">
+    [Weaviate](https://weaviate.io/) is a cloud-native vector database with a graph-like object model, rich filtering, and built-in hybrid search.
+
+    ```bash
+    VECTOR_DB="weaviate"
+    WEAVIATE_ENDPOINT="http://localhost:8080"
+    WEAVIATE_API_KEY=your-api-key
+    ```
+
+    `WEAVIATE_API_KEY` is required for Weaviate Cloud (WCS) instances. For unauthenticated local Docker instances, omit it.
+
+    **Best for:** Teams that want hybrid semantic + keyword search and complex object-level metadata filtering.
+  </Accordion>
+
+  <Accordion title="Milvus">
+    [Milvus](https://milvus.io/) is an open-source, horizontally scalable vector database built for enterprise-scale workloads.
+
+    ```bash
+    VECTOR_DB="milvus"
+    MILVUS_ADDRESS="http://localhost:19530"
+    MILVUS_USERNAME=your-username
+    MILVUS_PASSWORD=your-password
+    ```
+
+    Start a minimal Milvus cluster locally:
+    ```bash
+    docker compose up -d  # using the official Milvus docker-compose.yml
+    ```
+
+    **Best for:** Enterprise deployments needing horizontal scaling, high availability, and billions of vectors.
+  </Accordion>
+
+  <Accordion title="Zilliz Cloud">
+    [Zilliz Cloud](https://zilliz.com/cloud) is the fully managed cloud version of Milvus, operated by the Milvus creators.
+
+    ```bash
+    VECTOR_DB="zilliz"
+    ZILLIZ_ENDPOINT="https://sample.api.gcp-us-west1.zillizcloud.com"
+    ZILLIZ_API_TOKEN=your-api-token
+    ```
+
+    Find your cluster endpoint and generate an API token in the [Zilliz Cloud console](https://cloud.zilliz.com/).
+
+    **Best for:** Teams that want Milvus's scalability without the operational overhead of self-hosting.
+  </Accordion>
+
+  <Accordion title="pgvector (PostgreSQL)">
+    [pgvector](https://github.com/pgvector/pgvector) is a PostgreSQL extension that adds vector similarity search to an existing Postgres database. It lets you store embeddings alongside your application data with no separate vector-database process.
+
+    ```bash
+    VECTOR_DB="pgvector"
+    PGVECTOR_CONNECTION_STRING="postgresql://dbuser:dbuserpass@localhost:5432/yourdb"
+    # Optional — customise the vectors table name (default: anythingllm_vectors):
+    # PGVECTOR_TABLE_NAME="anythingllm_vectors"
+    ```
+
+    Ensure the `pgvector` extension is installed in the target database:
+    ```sql
+    CREATE EXTENSION IF NOT EXISTS vector;
+    ```
+
+    **Best for:** Teams that already operate PostgreSQL and want to avoid running a separate vector-database service.
+  </Accordion>
+
+  <Accordion title="Astra DB (DataStax)">
+    [Astra DB](https://www.datastax.com/products/datastax-astra) is DataStax's serverless, cloud-native database built on Apache Cassandra with integrated vector search.
+
+    ```bash
+    VECTOR_DB="astra"
+    ASTRA_DB_APPLICATION_TOKEN=AstraCS:...
+    ASTRA_DB_ENDPOINT=https://your-db-id-region.apps.astra.datastax.com
+    ```
+
+    Obtain your application token and endpoint from the [Astra DB console](https://astra.datastax.com/).
+
+    **Best for:** Teams using the Cassandra / DataStax ecosystem who want serverless, pay-as-you-go vector storage.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Provider Quick-Reference
+
+| `VECTOR_DB` value | Hosting | Required variables |
+|---|---|---|
+| `lancedb` | Built-in (embedded) | *(none)* |
+| `chroma` | Self-hosted | `CHROMA_ENDPOINT` |
+| `chromacloud` | Managed (Chroma) | `CHROMACLOUD_API_KEY`, `CHROMACLOUD_TENANT`, `CHROMACLOUD_DATABASE` |
+| `pinecone` | Managed | `PINECONE_API_KEY`, `PINECONE_INDEX` |
+| `qdrant` | Self-hosted or managed | `QDRANT_ENDPOINT` |
+| `weaviate` | Self-hosted or managed | `WEAVIATE_ENDPOINT` |
+| `milvus` | Self-hosted | `MILVUS_ADDRESS`, `MILVUS_USERNAME`, `MILVUS_PASSWORD` |
+| `zilliz` | Managed (Zilliz Cloud) | `ZILLIZ_ENDPOINT`, `ZILLIZ_API_TOKEN` |
+| `pgvector` | Self-hosted (PostgreSQL) | `PGVECTOR_CONNECTION_STRING` |
+| `astra` | Managed (DataStax) | `ASTRA_DB_APPLICATION_TOKEN`, `ASTRA_DB_ENDPOINT` |
+
+<Note>
+  The `VECTOR_DB` variable set via environment takes precedence over any selection stored in the AnythingLLM database. Remove it from `.env` if you want to manage the vector database through the Settings UI instead.
+</Note>

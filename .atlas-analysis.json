@@ -1,0 +1,128 @@
+{
+  "projectType": "saas",
+  "projectName": "AnythingLLM",
+  "projectDescription": "AnythingLLM is an all-in-one, self-hosted AI application that lets you chat with documents, build AI agents, and run private LLM workflows—locally or in the cloud, with zero-friction setup.",
+  "theme": "luma",
+  "primaryColor": "#8c9494",
+  "lightColor": "#24242c",
+  "darkColor": "#c5c5c6",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation/docker",
+              "installation/bare-metal",
+              "installation/desktop"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment-variables",
+              "configuration/llm-providers",
+              "configuration/embedding-models",
+              "configuration/vector-databases"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/workspaces",
+              "features/document-ingestion",
+              "features/multi-user",
+              "features/memories",
+              "features/multimodal"
+            ]
+          },
+          {
+            "group": "AI Agents",
+            "pages": [
+              "agents/overview",
+              "agents/built-in-skills",
+              "agents/custom-agents",
+              "agents/agent-flows",
+              "agents/mcp-compatibility"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/model-router",
+              "advanced/scheduled-jobs",
+              "advanced/embed-widget",
+              "advanced/browser-extension"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/workspaces",
+              "api-reference/documents",
+              "api-reference/users-admin",
+              "api-reference/embeds",
+              "api-reference/openai-compatible"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Chat with documents using RAG (Retrieval-Augmented Generation)",
+    "Support for 30+ LLM providers (OpenAI, Anthropic, Ollama, Gemini, etc.)",
+    "Built-in AI agents with web browsing, file creation, and SQL capabilities",
+    "No-code agent flow builder for automated multi-step workflows",
+    "MCP (Model Context Protocol) server compatibility",
+    "Multi-user support with role-based access control (Docker only)",
+    "11+ vector database integrations (Chroma, Pinecone, Qdrant, Weaviate, etc.)",
+    "Embeddable chat widget for websites",
+    "Dynamic Model Router for automatic provider/model selection",
+    "Automatic and user-managed memory injection",
+    "Scheduled recurring tasks with full agent capabilities",
+    "Intelligent skill reranking — reduces token usage by up to 80%",
+    "OpenAI-compatible API for drop-in integration",
+    "Desktop app for Mac, Windows, and Linux"
+  ],
+  "publicApiSurface": [
+    "GET /api/v1/auth",
+    "GET/POST /api/v1/workspace/new",
+    "GET /api/v1/workspaces",
+    "GET/DELETE /api/v1/workspace/{slug}",
+    "POST /api/v1/workspace/{slug}/chat",
+    "POST /api/v1/workspace/{slug}/stream-chat",
+    "GET /api/v1/workspace/{slug}/chats",
+    "POST /api/v1/workspace/{slug}/update-embeddings",
+    "POST /api/v1/workspace/{slug}/thread/new",
+    "POST /api/v1/workspace/{slug}/thread/{threadSlug}/chat",
+    "POST /api/v1/document/upload",
+    "POST /api/v1/document/upload-link",
+    "GET /api/v1/documents",
+    "GET/POST /api/v1/admin/users",
+    "POST /api/v1/admin/invite/new",
+    "GET /api/v1/admin/preferences",
+    "POST /api/v1/openai/chat/completions",
+    "GET /api/v1/openai/models",
+    "POST /api/v1/openai/embeddings",
+    "GET/POST /api/v1/embed",
+    "GET /api/v1/system",
+    "POST /api/v1/system/update-env"
+  ]
+}

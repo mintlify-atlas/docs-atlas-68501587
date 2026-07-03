@@ -1,0 +1,123 @@
+---
+title: "Install the AnythingLLM Desktop App"
+sidebarTitle: "Desktop App"
+description: "Download the AnythingLLM desktop app for Mac, Windows, or Linux. Get a fully local AI assistant with no setup required—models included."
+---
+
+The AnythingLLM desktop app is the fastest way to get a private, fully local AI assistant running on your personal machine. There is no Docker, no terminal, no dependency installation, and no cloud account required. Download the installer, open it, and you're chatting with your documents in minutes. The desktop app bundles the same core AnythingLLM engine used in the server version — including the built-in embedder, LanceDB vector store, and document ingestion pipeline — along with support for bundled local language models that run entirely on your device.
+
+<CardGroup cols={3}>
+  <Card title="macOS" icon="apple" href="https://anythingllm.com/download">
+    Available for both **Apple Silicon** (M1/M2/M3) and **Intel** Macs. Download the `.dmg` installer from the official download page.
+  </Card>
+  <Card title="Windows" icon="windows" href="https://anythingllm.com/download">
+    Available for **Windows 10 and later** (64-bit). Download the `.exe` installer from the official download page.
+  </Card>
+  <Card title="Linux" icon="linux" href="https://anythingllm.com/download">
+    Available as an **AppImage** for most Linux distributions. Download from the official download page.
+  </Card>
+</CardGroup>
+
+**Download:** [https://anythingllm.com/download](https://anythingllm.com/download)
+
+## Who Is the Desktop App For?
+
+The desktop app is designed for **individual users** who want a private AI assistant without managing servers or infrastructure. It is especially well-suited for:
+
+- Non-technical users who want to chat with their documents without using the command line
+- Developers who want a quick personal instance separate from a shared team deployment
+- Anyone who wants everything running locally on their laptop with zero external dependencies
+- Users who travel or work offline and need their AI assistant to work without an internet connection
+
+If you need **multi-user access**, the **embeddable chat widget**, or a shared deployment for a team, use the [Docker version](/installation/docker) instead.
+
+## Installation
+
+<Steps>
+  <Step title="Download the installer">
+    Go to [https://anythingllm.com/download](https://anythingllm.com/download) and download the installer for your operating system:
+
+    - **macOS Apple Silicon:** Use the ARM64 `.dmg`
+    - **macOS Intel:** Use the x64 `.dmg`
+    - **Windows:** Use the `.exe` installer
+    - **Linux:** Use the `.AppImage` file
+  </Step>
+
+  <Step title="Install the application">
+    **macOS:** Open the downloaded `.dmg`, drag AnythingLLM into your Applications folder, then open it from Launchpad or Spotlight. macOS may ask you to confirm opening an app from the internet — click **Open** when prompted.
+
+    **Windows:** Run the `.exe` installer and follow the setup wizard. Windows Defender SmartScreen may show a warning for unsigned apps — click **More info → Run anyway** to proceed.
+
+    **Linux:** Make the AppImage executable and run it:
+    ```bash
+    chmod +x AnythingLLM-x86_64.AppImage
+    ./AnythingLLM-x86_64.AppImage
+    ```
+  </Step>
+
+  <Step title="Complete the setup wizard">
+    When you first launch the desktop app, a setup wizard walks you through:
+
+    1. **LLM Selection** — choose a bundled local model or connect to a cloud provider (OpenAI, Anthropic, Ollama, etc.)
+    2. **Embedding Engine** — the native built-in embedder is selected by default and works immediately with no configuration
+    3. **Vector Database** — LanceDB is used by default; all data is stored locally on your machine
+
+    You can update every setting later from the app's settings panel.
+  </Step>
+
+  <Step title="Create a workspace and start chatting">
+    Click **New Workspace**, give it a name, and upload a document using the paperclip icon in the sidebar. AnythingLLM will embed and index the document locally, and you can start chatting with it immediately.
+
+    All processing — embedding, vector search, and LLM inference (when using a local model) — happens on your machine. Nothing is sent to external servers unless you choose a cloud LLM provider.
+  </Step>
+</Steps>
+
+## Local Model Support
+
+The desktop app includes built-in support for running language models locally on your device, powered by the same infrastructure used by tools like Ollama and LM Studio. When you select a local model during setup, the app downloads it directly to your machine. Supported model formats include GGUF models compatible with llama.cpp.
+
+You can also connect the desktop app to an external Ollama instance, LM Studio, or any OpenAI-compatible endpoint if you prefer to manage your models separately.
+
+## Privacy: Everything Stays Local by Default
+
+When using a local LLM and the default settings, AnythingLLM Desktop operates with complete privacy:
+
+- Your documents are processed and stored locally — they never leave your machine
+- Embeddings are generated by the built-in native embedder, running on-device
+- Chat history is stored in a local SQLite database on your filesystem
+- No account, login, or internet connection is required
+
+AnythingLLM includes opt-out anonymous telemetry (event counts only, no content). You can disable it during setup or at any time in **Settings → Privacy**.
+
+## Desktop vs. Docker: Feature Comparison
+
+The desktop app includes the full AnythingLLM feature set for individual use. A small number of features are available only in the Docker (server) version because they require a persistent multi-user backend:
+
+| Feature | Desktop App | Docker / Server |
+|---|---|---|
+| RAG chat with documents | ✅ | ✅ |
+| AI Agents | ✅ | ✅ |
+| Local model support | ✅ | ✅ |
+| 30+ LLM providers | ✅ | ✅ |
+| No-code Agent Flows | ✅ | ✅ |
+| MCP compatibility | ✅ | ✅ |
+| Scheduled tasks | ✅ | ✅ |
+| **Multi-user support** | ❌ | ✅ |
+| **Embeddable chat widget** | ❌ | ✅ |
+| **User permissions / roles** | ❌ | ✅ |
+| **Developer API access** | ❌ | ✅ |
+
+<Note>
+  Multi-user support and the embeddable website chat widget are available exclusively in the Docker version of AnythingLLM. If your use case requires either of these features, follow the [Docker installation guide](/installation/docker).
+</Note>
+
+## Updating the Desktop App
+
+The desktop app checks for updates automatically and will prompt you when a new version is available. You can also check manually from **Help → Check for Updates** in the menu bar. Updates are incremental and preserve all your existing workspaces, documents, and settings.
+
+## Related Links
+
+- [Download AnythingLLM Desktop](https://anythingllm.com/download)
+- [Docker Installation](/installation/docker) — for team deployments and multi-user access
+- [Quickstart Guide](/quickstart) — getting started with Docker in under 5 minutes
+- [AnythingLLM on GitHub](https://github.com/Mintplex-Labs/anything-llm)

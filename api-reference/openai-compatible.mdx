@@ -1,0 +1,265 @@
+---
+title: "OpenAI-Compatible API for AnythingLLM"
+sidebarTitle: "OpenAI Compatible"
+description: "AnythingLLM exposes OpenAI-compatible endpoints for chat completions, embeddings, and vector stores. Drop in any OpenAI SDK by changing the base URL."
+---
+
+AnythingLLM implements a subset of the OpenAI REST API surface, allowing you to point any tool or library that already speaks the OpenAI protocol — the official Python and JavaScript SDKs, LangChain, LlamaIndex, and more — directly at your self-hosted instance. The only change required is setting the `base_url` (or `baseURL`) to your AnythingLLM server and providing your AnythingLLM API key as the Bearer token. Workspace slugs act as model names: wherever OpenAI expects a `model` parameter you supply the slug of the workspace you want to query.
+
+<Note>
+  Only a subset of OpenAI API parameters are respected. Fields not understood by
+  AnythingLLM are silently ignored. Consult the individual endpoint descriptions
+  below for the supported parameters.
+</Note>
+
+---
+
+## Authentication
+
+All OpenAI-compatible endpoints use the same Bearer token authentication as the rest of the AnythingLLM API. Set the `Authorization` header to `Bearer YOUR_API_KEY`, or configure it as the `api_key` when constructing an OpenAI client.
+
+---
+
+## GET /v1/openai/models
+
+List all available "models" — which are the workspace slugs on your AnythingLLM instance. Use the `id` field from a response object anywhere you would normally pass a model name such as `gpt-4o`.
+
+### Response Fields
+
+<ResponseField name="object" type="string">`"list"`</ResponseField>
+<ResponseField name="data" type="array">
+  <Expandable title="model object fields">
+    <ResponseField name="id" type="string">The workspace slug. Pass this as `model` in chat/embedding calls.</ResponseField>
+    <ResponseField name="object" type="string">`"model"`</ResponseField>
+    <ResponseField name="created" type="integer">Unix timestamp of workspace creation.</ResponseField>
+    <ResponseField name="owned_by" type="string">The LLM provider configured for this workspace.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/openai/models \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/openai/chat/completions
+
+Send a chat-style conversation to a workspace and receive a response in OpenAI `chat.completions` format. Supports both regular (non-streaming) and Server-Sent Events streaming responses.
+
+The `model` field must be set to a workspace slug returned by `GET /v1/openai/models`. The workspace's embedded documents and system prompt are applied automatically.
+
+### Body Parameters
+
+<ParamField body="model" type="string" required>
+  Workspace slug to route the conversation to (e.g. `"product-docs"`).
+</ParamField>
+
+<ParamField body="messages" type="array" required>
+  Array of conversation turn objects in OpenAI format, each with `role` (`"system"`, `"user"`, or `"assistant"`) and `content` string.
+</ParamField>
+
+<ParamField body="stream" type="boolean">
+  Set to `true` to receive the response as an SSE stream. Default `false`.
+</ParamField>
+
+<ParamField body="temperature" type="number">
+  Sampling temperature (0–1). Overrides the workspace's default when provided.
+</ParamField>
+
+### Response
+
+Returns a standard OpenAI `ChatCompletion` object (or a stream of `ChatCompletionChunk` objects when `stream: true`).
+
+```bash
+curl -X POST https://your-instance.com/api/v1/openai/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "product-docs",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "What does AnythingLLM do?"}
+    ],
+    "stream": false,
+    "temperature": 0.7
+  }'
+```
+
+---
+
+## POST /v1/openai/embeddings
+
+Generate embedding vectors for one or more text strings using the embedder model configured in AnythingLLM. The vectors are returned in the same order as the input array.
+
+<Warning>
+  Each input string must fit within the context window of your configured embedder model. Strings that are too long will fail to embed. Truncate or chunk your text before calling this endpoint if necessary.
+</Warning>
+
+### Body Parameters
+
+<ParamField body="input" type="array" required>
+  Array of text strings to embed. Example: `["First string", "Second string"]`.
+</ParamField>
+
+<ParamField body="model" type="string">
+  Ignored — AnythingLLM always uses the system's configured embedder. Pass `null` or omit entirely.
+</ParamField>
+
+### Response
+
+Returns a standard OpenAI embeddings response object with a `data` array of embedding objects, each containing an `embedding` vector (array of floats) and the corresponding `index`.
+
+```bash
+curl -X POST https://your-instance.com/api/v1/openai/embeddings \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": [
+      "What is retrieval-augmented generation?",
+      "How does vector search work?"
+    ],
+    "model": null
+  }'
+```
+
+---
+
+## GET /v1/openai/vector_stores
+
+List all vector database collections connected to AnythingLLM. Each entry corresponds to a workspace and returns its unique vector database identifier, which is the same as the workspace slug.
+
+### Response Fields
+
+<ResponseField name="data" type="array">
+  <Expandable title="vector store object fields">
+    <ResponseField name="id" type="string">Vector store identifier (workspace slug).</ResponseField>
+    <ResponseField name="object" type="string">`"vector_store"`</ResponseField>
+    <ResponseField name="name" type="string">Human-readable workspace name.</ResponseField>
+    <ResponseField name="file_counts" type="object">
+      Object with a `total` key indicating the number of documents embedded in this workspace.
+    </ResponseField>
+    <ResponseField name="provider" type="string">The vector database backend in use (e.g. `"LanceDB"`, `"Pinecone"`).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/openai/vector_stores \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## SDK Examples
+
+The following examples show how to configure the official OpenAI SDKs to point at your AnythingLLM instance. Replace `https://your-instance.com` with your actual server address and `product-docs` with a real workspace slug.
+
+<CodeGroup>
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_ANYTHINGLLM_API_KEY",
+    base_url="https://your-instance.com/api/v1/openai",
+)
+
+# List workspaces as models
+models = client.models.list()
+for model in models.data:
+    print(model.id)
+
+# Chat completion
+response = client.chat.completions.create(
+    model="product-docs",          # workspace slug
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What changed in the latest release?"},
+    ],
+    temperature=0.5,
+)
+print(response.choices[0].message.content)
+
+# Streaming chat
+stream = client.chat.completions.create(
+    model="product-docs",
+    messages=[{"role": "user", "content": "Summarise the architecture."}],
+    stream=True,
+)
+for chunk in stream:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="", flush=True)
+
+# Embeddings
+embeddings = client.embeddings.create(
+    model="product-docs",           # ignored; uses system embedder
+    input=["AnythingLLM overview", "Vector search concepts"],
+)
+print(embeddings.data[0].embedding[:5])  # first 5 dimensions
+```
+
+```javascript JavaScript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: "YOUR_ANYTHINGLLM_API_KEY",
+  baseURL: "https://your-instance.com/api/v1/openai",
+});
+
+// List workspaces as models
+const models = await client.models.list();
+models.data.forEach((m) => console.log(m.id));
+
+// Chat completion
+const response = await client.chat.completions.create({
+  model: "product-docs",  // workspace slug
+  messages: [
+    { role: "system", content: "You are a helpful assistant." },
+    { role: "user", content: "What changed in the latest release?" },
+  ],
+  temperature: 0.5,
+});
+console.log(response.choices[0].message.content);
+
+// Streaming chat
+const stream = await client.chat.completions.create({
+  model: "product-docs",
+  messages: [{ role: "user", content: "Summarise the architecture." }],
+  stream: true,
+});
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
+}
+
+// Embeddings
+const embeddings = await client.embeddings.create({
+  model: "product-docs",   // ignored; uses system embedder
+  input: ["AnythingLLM overview", "Vector search concepts"],
+});
+console.log(embeddings.data[0].embedding.slice(0, 5));
+```
+
+</CodeGroup>
+
+---
+
+## Limitations
+
+The following table summarises the support status of common OpenAI API parameters.
+
+| Parameter | Supported | Notes |
+|---|---|---|
+| `model` | ✅ | Must be a workspace slug from `/v1/openai/models`. |
+| `messages` | ✅ | `system`, `user`, and `assistant` roles supported. |
+| `stream` | ✅ | SSE streaming supported for chat completions. |
+| `temperature` | ✅ | Overrides the workspace default. |
+| `max_tokens` | ❌ | Controlled by the underlying LLM provider settings. |
+| `top_p` | ❌ | Not forwarded. |
+| `n` | ❌ | Only a single completion is returned. |
+| `functions` / `tools` | ❌ | Use the native AnythingLLM agent (`@agent`) instead. |
+| `response_format` | ❌ | Not supported. |
+
+<Note>
+  Parameters not listed in the table are silently ignored. If you need features
+  beyond this subset, use the native [Workspace Chat endpoint](/api-reference/workspaces#post-v1-workspace-slug-chat) which exposes AnythingLLM-specific options such as `mode`, `sessionId`, and `attachments`.
+</Note>

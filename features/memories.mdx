@@ -1,0 +1,109 @@
+---
+title: "AI Memory: Persistent Context Across Chats"
+sidebarTitle: "Memories"
+description: "AnythingLLM can remember facts about users and workspaces, injecting relevant memories into every chat to provide personalized, context-aware responses."
+---
+
+Memories give AnythingLLM a persistent sense of context that survives beyond any single conversation. Instead of starting from scratch every time you open a new chat, the model can recall facts it has learned about you — your preferred communication style, ongoing projects, key decisions made in previous sessions, and more. These stored facts are automatically woven into the system prompt at the start of each turn, so the model always has your history in view without you needing to re-explain it.
+
+<Tip>
+  Memories are especially powerful for long-running projects. Over time, the model builds up a picture of your project context, terminology, and preferences, making it feel increasingly familiar with your work rather than treating every conversation as a first meeting.
+</Tip>
+
+## Memory Scopes
+
+AnythingLLM stores two types of memories that operate at different levels:
+
+<CardGroup cols={2}>
+  <Card title="Global Memories" icon="globe">
+    Attached to a user across **all** workspaces. These are general facts about the user — their name, preferred language, communication style, or cross-project context. Up to **5** global memories are stored per user.
+  </Card>
+  <Card title="Workspace Memories" icon="folder">
+    Attached to a specific (user, workspace) pair. These capture workspace-specific context — project names, stakeholders, decisions, and terminology relevant to that workspace. Up to **20** workspace memories are stored per user per workspace.
+  </Card>
+</CardGroup>
+
+You can promote a workspace memory to global scope (and vice versa) if a fact turns out to be relevant across workspaces.
+
+## Memory Injection
+
+At the start of every chat turn, AnythingLLM fetches the user's memories and appends them to the system prompt as a `## Things I Remember About You` section. The model receives both global memories and the most relevant workspace memories before it reads the user's message.
+
+```
+## Things I Remember About You
+- Prefers concise, bullet-point answers
+- Working on Project Phoenix with a Q3 2025 deadline
+- Legal team contact is Sarah Chen
+```
+
+### Workspace Memory Reranking
+
+A user can accumulate up to 20 workspace memories, but injecting all 20 on every turn would waste valuable context space. AnythingLLM only injects the **top 5 most relevant** workspace memories by reranking them against the current message and recent chat history.
+
+The reranking process:
+1. Takes the current user message plus the last 3 chat messages as a combined query
+2. Uses the native embedding reranker to score each workspace memory against that query
+3. Selects the top 5 memories by relevance score
+4. Falls back to the 5 most recently created memories if the reranker fails
+
+Global memories are **always** injected in full (up to the 5-item limit) since they apply everywhere.
+
+## Automatic Memory Extraction
+
+AnythingLLM includes a background job that reads recent chat history and extracts new memories automatically using a two-phase pipeline:
+
+<Steps>
+  <Step title="Observer phase">
+    The LLM reads a batch of recent chat messages and identifies candidate facts worth remembering. Each candidate is tagged as either `WORKSPACE` scope (relevant to this project) or `GLOBAL` scope (relevant across all workspaces), and given an action of `create` (new fact) or `update` (revision of an existing memory).
+  </Step>
+  <Step title="Reflector phase">
+    A second LLM pass reviews the Observer's candidates against the user's existing memories to eliminate duplicates, resolve contradictions, and assess whether each candidate is genuinely worth storing.
+  </Step>
+  <Step title="Apply">
+    Approved memories are written to the database. Updates revise existing records in place; creates add new rows. The processed chats are flagged `memoryProcessed` so they are not re-read in future extraction runs.
+  </Step>
+</Steps>
+
+### Extraction Schedule
+
+The memory extraction job runs on a background schedule controlled by two environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `MEMORY_EXTRACTION_INTERVAL` | `3hr` | How often the extraction job runs (e.g., `1hr`, `30min`, `6hr`) |
+| `MEMORY_IDLE_THRESHOLD_MS` | `1200000` (20 min) | Minimum idle time (in ms) since the last chat before extraction runs. Set to `0` to disable the idle check. |
+
+The idle threshold prevents extraction from firing immediately after a user finishes a conversation — it waits until the user has been quiet for the specified period, ensuring the full context of a conversation is captured rather than partial fragments.
+
+<Note>
+  The extraction job requires at least **5 unprocessed chat messages** for a given (user, workspace) pair before it processes them. This prevents wasting LLM calls on very short exchanges.
+</Note>
+
+## Enabling and Disabling Memories
+
+Memory features are controlled by two system settings:
+
+- **`memory_enabled`** — Master toggle. When off, no memories are injected and no extraction runs.
+- **`memory_auto_extraction`** — Controls the automatic extraction background job independently. You can enable injection while disabling automatic extraction if you prefer to manage memories manually.
+
+Both settings are found in **Settings → AI Preferences → Memory** in the AnythingLLM UI.
+
+## Memory Limits
+
+| Scope | Storage Limit | Injected Per Turn |
+|---|---|---|
+| Global | 5 memories per user | Up to 5 (all injected) |
+| Workspace | 20 memories per user per workspace | Top 5 (reranked) |
+
+When a scope is full, new memories cannot be created until existing ones are deleted. The automatic extraction job respects these limits and will not exceed them.
+
+## Viewing and Managing Your Memories
+
+Users can see and delete their own memories from the profile panel:
+
+1. Click your avatar or username in the bottom-left of the AnythingLLM UI.
+2. Open the **Memories** tab.
+3. Browse your global and workspace-scoped memories.
+4. Click the trash icon next to any memory to delete it permanently.
+
+Admins can view and delete memories for any user through the admin panel.

@@ -1,0 +1,239 @@
+---
+title: "Configure Embedding Models in AnythingLLM"
+sidebarTitle: "Embedding Models"
+description: "Choose and configure embedding models for document vectorization in AnythingLLM. Supports OpenAI, Azure, Ollama, Cohere, Gemini, and native local embedders."
+---
+
+When you upload a document to AnythingLLM, the collector splits it into overlapping text chunks and passes each chunk through an embedding model, which converts the text into a high-dimensional numeric vector. Those vectors are stored in your chosen vector database and later used to find the most semantically relevant chunks for each chat query. The quality, dimensionality, and context-window size of the embedding model therefore directly affect retrieval accuracy — choosing the right embedder for your use-case is as important as choosing the right LLM.
+
+<Warning>
+  **Changing your embedding model after you have already embedded documents requires you to re-embed every workspace.** The vectors produced by one model are incompatible with those from another. AnythingLLM will warn you in the UI when this situation is detected. Plan your embedder choice before ingesting large document collections.
+</Warning>
+
+## Key Environment Variables
+
+<ParamField path="EMBEDDING_ENGINE" type="string" default="native">
+  Selects which embedding engine to use. Valid values: `native`, `openai`, `azure`, `ollama`, `lmstudio`, `localai`, `cohere`, `voyageai`, `gemini`, `mistral`, `openrouter`, `lemonade`, `litellm`, `generic-openai`.
+</ParamField>
+
+<ParamField path="EMBEDDING_MODEL_PREF" type="string">
+  The specific model identifier to use for embeddings. The correct value depends on the engine — see each engine section below for examples.
+</ParamField>
+
+<ParamField path="EMBEDDING_MODEL_MAX_CHUNK_LENGTH" type="number">
+  Maximum character length of a single chunk passed to the embedder. Tune this to stay within the model's token budget. Typical values range from `1000` (conservative) to `8192` (most modern models).
+</ParamField>
+
+<ParamField path="EMBEDDING_BASE_PATH" type="string">
+  Base URL for self-hosted embedding engines. Used by Ollama, LM Studio, LocalAI, Lemonade, LiteLLM, and Generic OpenAI.
+</ParamField>
+
+---
+
+## Supported Embedding Engines
+
+<AccordionGroup>
+  <Accordion title="Native (built-in — no API key needed)">
+    The native embedder bundles a small transformer model directly inside AnythingLLM using the [Xenova Transformers.js](https://github.com/xenova/transformers.js) runtime. It runs entirely in-process, requires no external service, and works offline out of the box.
+
+    ```bash
+    EMBEDDING_ENGINE='native'
+    EMBEDDING_MODEL_PREF='Xenova/all-MiniLM-L6-v2'
+    ```
+
+    <Tip>
+      The native embedder is the best choice for local-first, single-user, or air-gapped deployments where you want zero external dependencies. `Xenova/all-MiniLM-L6-v2` is a fast, high-quality 384-dimensional model suitable for most document retrieval tasks.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="OpenAI">
+    Uses the OpenAI Embeddings API. Delivers excellent retrieval quality and supports the latest generation of embedding models.
+
+    ```bash
+    EMBEDDING_ENGINE='openai'
+    OPEN_AI_KEY=sk-...
+    EMBEDDING_MODEL_PREF='text-embedding-ada-002'
+    ```
+
+    **Available models:**
+
+    | Model | Dimensions | Notes |
+    |---|---|---|
+    | `text-embedding-ada-002` | 1 536 | Legacy default, widely compatible |
+    | `text-embedding-3-small` | 1 536 | Faster and cheaper than ada-002 |
+    | `text-embedding-3-large` | 3 072 | Highest accuracy, higher cost |
+
+    <Tip>
+      For new cloud deployments, `text-embedding-3-small` offers the best balance of cost, speed, and retrieval quality.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Azure OpenAI">
+    Uses an embedding model deployed in your Azure OpenAI resource. The model preference is your Azure **deployment name**, not the underlying base model name.
+
+    ```bash
+    EMBEDDING_ENGINE='azure'
+    AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+    AZURE_OPENAI_KEY=...
+    EMBEDDING_MODEL_PREF='my-embedder-model'
+    ```
+
+    The underlying base model must be `text-embedding-ada-002` or one of the `text-embedding-3-*` variants.
+  </Accordion>
+
+  <Accordion title="Ollama">
+    Runs embedding models locally through Ollama. Pull an embedding model with `ollama pull nomic-embed-text` before enabling this engine.
+
+    ```bash
+    EMBEDDING_ENGINE='ollama'
+    EMBEDDING_BASE_PATH='http://host.docker.internal:11434'
+    EMBEDDING_MODEL_PREF='nomic-embed-text:latest'
+    EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
+    ```
+
+    Popular Ollama embedding models include `nomic-embed-text`, `mxbai-embed-large`, and `all-minilm`.
+  </Accordion>
+
+  <Accordion title="LM Studio">
+    Uses an embedding model loaded in LM Studio's local server.
+
+    ```bash
+    EMBEDDING_ENGINE='lmstudio'
+    EMBEDDING_BASE_PATH='https://host.docker.internal:1234/v1'
+    EMBEDDING_MODEL_PREF='nomic-ai/nomic-embed-text-v1.5-GGUF/nomic-embed-text-v1.5.Q4_0.gguf'
+    EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
+    ```
+  </Accordion>
+
+  <Accordion title="LocalAI">
+    LocalAI can serve embedding models alongside LLMs through its OpenAI-compatible API.
+
+    ```bash
+    EMBEDDING_ENGINE='localai'
+    EMBEDDING_BASE_PATH='http://localhost:8080/v1'
+    EMBEDDING_MODEL_PREF='text-embedding-ada-002'
+    EMBEDDING_MODEL_MAX_CHUNK_LENGTH=1000
+    ```
+  </Accordion>
+
+  <Accordion title="Cohere">
+    Uses Cohere's embedding API. Cohere offers multilingual and domain-specialised embedding models.
+
+    ```bash
+    EMBEDDING_ENGINE='cohere'
+    COHERE_API_KEY=...
+    EMBEDDING_MODEL_PREF='embed-english-v3.0'
+    ```
+
+    Other notable models: `embed-multilingual-v3.0`, `embed-english-light-v3.0`.
+  </Accordion>
+
+  <Accordion title="Google Gemini">
+    Uses the Google Gemini embedding API.
+
+    ```bash
+    EMBEDDING_ENGINE='gemini'
+    GEMINI_EMBEDDING_API_KEY=...
+    EMBEDDING_MODEL_PREF='text-embedding-004'
+    ```
+  </Accordion>
+
+  <Accordion title="Mistral">
+    Uses Mistral's embedding endpoint.
+
+    ```bash
+    EMBEDDING_ENGINE='mistral'
+    MISTRAL_API_KEY=...
+    EMBEDDING_MODEL_PREF='mistral-embed'
+    ```
+  </Accordion>
+
+  <Accordion title="VoyageAI">
+    VoyageAI specialises in high-quality retrieval embeddings, with models fine-tuned for code, finance, law, and general content.
+
+    ```bash
+    EMBEDDING_ENGINE='voyageai'
+    VOYAGEAI_API_KEY=...
+    EMBEDDING_MODEL_PREF='voyage-large-2-instruct'
+    ```
+
+    Other models: `voyage-2`, `voyage-code-2`, `voyage-finance-2`, `voyage-law-2`.
+  </Accordion>
+
+  <Accordion title="OpenRouter">
+    Routes embedding requests through the OpenRouter API, giving access to multiple embedding providers under a single key.
+
+    ```bash
+    EMBEDDING_ENGINE='openrouter'
+    OPENROUTER_API_KEY='...'
+    EMBEDDING_MODEL_PREF='baai/bge-m3'
+    ```
+  </Accordion>
+
+  <Accordion title="Generic OpenAI (any compatible endpoint)">
+    Use this engine for any OpenAI-compatible embedding endpoint not covered by the named engines above — vLLM, Xinference, custom proxies, etc.
+
+    ```bash
+    EMBEDDING_ENGINE='generic-openai'
+    EMBEDDING_BASE_PATH='http://127.0.0.1:4000'
+    EMBEDDING_MODEL_PREF='text-embedding-ada-002'
+    EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
+    GENERIC_OPEN_AI_EMBEDDING_API_KEY='sk-123abc'
+    # Optional tuning:
+    # GENERIC_OPEN_AI_EMBEDDING_MAX_CONCURRENT_CHUNKS=500
+    # GENERIC_OPEN_AI_EMBEDDING_API_DELAY_MS=1000
+    # GENERIC_OPEN_AI_EMBEDDING_QUERY_PREFIX=
+    # GENERIC_OPEN_AI_EMBEDDING_PASSAGE_PREFIX=
+    ```
+
+    `GENERIC_OPEN_AI_EMBEDDING_QUERY_PREFIX` and `GENERIC_OPEN_AI_EMBEDDING_PASSAGE_PREFIX` let you prepend instruction strings required by some instruction-tuned embedding models (e.g., `"Represent this sentence for searching relevant passages: "`).
+  </Accordion>
+
+  <Accordion title="LiteLLM">
+    Routes embedding requests through a locally running LiteLLM proxy, giving you access to hundreds of backends through one endpoint.
+
+    ```bash
+    EMBEDDING_ENGINE='litellm'
+    LITE_LLM_BASE_PATH='http://127.0.0.1:4000'
+    LITE_LLM_API_KEY='sk-123abc'
+    EMBEDDING_MODEL_PREF='text-embedding-ada-002'
+    EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
+    ```
+  </Accordion>
+
+  <Accordion title="Lemonade">
+    Lemonade is an AMD ROCm-optimised local inference server that also supports embedding models.
+
+    ```bash
+    EMBEDDING_ENGINE='lemonade'
+    EMBEDDING_BASE_PATH='http://127.0.0.1:8000'
+    EMBEDDING_MODEL_PREF='Qwen3-embedder'
+    EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Engine Quick-Reference
+
+| `EMBEDDING_ENGINE` | Requires API key | Self-hosted | Recommended model |
+|---|---|---|---|
+| `native` | No | Yes (in-process) | `Xenova/all-MiniLM-L6-v2` |
+| `openai` | Yes | No | `text-embedding-3-small` |
+| `azure` | Yes | No | *(your deployment name)* |
+| `ollama` | No | Yes | `nomic-embed-text:latest` |
+| `lmstudio` | No | Yes | *(loaded model)* |
+| `localai` | Optional | Yes | `text-embedding-ada-002` |
+| `cohere` | Yes | No | `embed-english-v3.0` |
+| `gemini` | Yes | No | `text-embedding-004` |
+| `mistral` | Yes | No | `mistral-embed` |
+| `voyageai` | Yes | No | `voyage-large-2-instruct` |
+| `openrouter` | Yes | No | `baai/bge-m3` |
+| `generic-openai` | Optional | Either | *(model-dependent)* |
+| `litellm` | Optional | Yes | *(model-dependent)* |
+| `lemonade` | No | Yes | `Qwen3-embedder` |
+
+<Note>
+  The `EMBEDDING_ENGINE` and `EMBEDDING_MODEL_PREF` set via environment variables take precedence over any values stored in the AnythingLLM database. Remove these variables from `.env` if you want to manage the embedder via the UI.
+</Note>

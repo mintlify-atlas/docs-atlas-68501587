@@ -1,47 +1,168 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with AnythingLLM in Minutes"
+sidebarTitle: "Quickstart"
+description: "Install AnythingLLM via Docker, connect an LLM provider, upload a document, and send your first chat in under 5 minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+AnythingLLM is designed to go from zero to a working private AI assistant as fast as possible. The quickest path is Docker — a single command pulls the image, mounts a local storage folder, and starts the server. From there, a guided setup wizard walks you through every remaining step in the browser. If you'd rather skip Docker entirely, the [desktop app](/installation/desktop) gets you running just as quickly with no command-line work at all.
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+<Tip>
+  **Prefer a GUI installer?** Download the [AnythingLLM Desktop App](https://anythingllm.com/download) for Mac, Windows, or Linux. It bundles everything — including local model support — and requires no Docker or terminal commands. Perfect for non-technical users or anyone who wants a purely local setup.
+</Tip>
+
+<Note>
+  If you plan to run AnythingLLM on **bare metal** (without Docker), you need **Node.js v18 or higher** and **Yarn** installed before you begin. See the [Bare Metal installation guide](/installation/bare-metal) for the full walkthrough.
+</Note>
 
 ## Prerequisites
 
-Before you begin, you must have:
+- [Docker](https://docs.docker.com/get-docker/) installed and running
+- Access to an LLM — either a local model via [Ollama](https://ollama.ai/) or an API key from a provider like OpenAI
 
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+---
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Pull and run the Docker image">
+    Run the following command in your terminal. It pulls the latest AnythingLLM image, creates a persistent storage folder in your home directory, and starts the server on port `3001`.
 
+    **Linux / macOS:**
     ```bash
-    npm install your-package
+    export STORAGE_LOCATION=$HOME/anythingllm && \
+    mkdir -p $STORAGE_LOCATION && \
+    touch "$STORAGE_LOCATION/.env" && \
+    docker run -d --rm -p 3001:3001 \
+    --cap-add SYS_ADMIN \
+    -v ${STORAGE_LOCATION}:/app/server/storage \
+    -v ${STORAGE_LOCATION}/.env:/app/server/.env \
+    -e STORAGE_DIR="/app/server/storage" \
+    mintplexlabs/anythingllm
     ```
+
+    **Windows (PowerShell):**
+    ```powershell
+    $env:STORAGE_LOCATION="$HOME\Documents\anythingllm"; `
+    If(!(Test-Path $env:STORAGE_LOCATION)) {New-Item $env:STORAGE_LOCATION -ItemType Directory}; `
+    If(!(Test-Path "$env:STORAGE_LOCATION\.env")) {New-Item "$env:STORAGE_LOCATION\.env" -ItemType File}; `
+    docker run -d --rm -p 3001:3001 `
+    --cap-add SYS_ADMIN `
+    -v "$env:STORAGE_LOCATION`:/app/server/storage" `
+    -v "$env:STORAGE_LOCATION\.env:/app/server/.env" `
+    -e STORAGE_DIR="/app/server/storage" `
+    mintplexlabs/anythingllm;
+    ```
+
+    The image supports both `amd64` and `arm64` CPU architectures. The `-v` volume mounts ensure your data persists across container restarts and upgrades.
+
+    <Note>
+      If you're connecting AnythingLLM to a service running on your host machine (such as Ollama on `localhost:11434`), use `http://host.docker.internal:11434` instead of `localhost` in your configuration. On Linux, add `--add-host=host.docker.internal:host-gateway` to the `docker run` command.
+    </Note>
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
 
-    ```bash
-    your-cli init
+  <Step title="Open the setup wizard">
+    Once the container is running, open your browser and navigate to:
+
     ```
+    http://localhost:3001
+    ```
+
+    The first time you visit, AnythingLLM presents a setup wizard. Follow the prompts to:
+
+    1. Create your admin account (username and password)
+    2. Choose your LLM provider (covered in the next step)
+    3. Choose your embedding engine (the native built-in embedder works out of the box)
+    4. Choose your vector database (LanceDB is the default and requires no configuration)
+
+    You can change every setting later from the admin panel, so don't worry about getting everything perfect right now.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
 
-    ```bash
-    your-cli start
-    ```
+  <Step title="Configure an LLM provider">
+    AnythingLLM supports 30+ LLM providers. Choose the option that fits your setup:
+
+    <CodeGroup>
+      ```bash Ollama (Local — Free)
+      # 1. Make sure Ollama is running on your host machine:
+      #    https://ollama.ai/download
+      #
+      # 2. Pull a model (e.g. llama3.2):
+      ollama pull llama3.2
+      #
+      # 3. In the AnythingLLM setup wizard, select "Ollama" as the LLM provider
+      #    and enter the base URL:
+      #    http://host.docker.internal:11434
+      #
+      # 4. Select your pulled model from the dropdown (e.g. llama3.2)
+      ```
+
+      ```bash OpenAI (Cloud)
+      # In the AnythingLLM setup wizard:
+      # 1. Select "OpenAI" as the LLM provider
+      # 2. Enter your OpenAI API key
+      # 3. Choose a model (e.g. gpt-4o)
+      #
+      # Or set these environment variables before starting the container:
+      # LLM_PROVIDER=openai
+      # OPEN_AI_KEY=sk-your-api-key-here
+      # OPEN_MODEL_PREF=gpt-4o
+      ```
+
+      ```bash Anthropic (Cloud)
+      # In the AnythingLLM setup wizard:
+      # 1. Select "Anthropic" as the LLM provider
+      # 2. Enter your Anthropic API key
+      # 3. Choose a model (e.g. claude-sonnet-4-6)
+      #
+      # Or set these environment variables before starting the container:
+      # LLM_PROVIDER=anthropic
+      # ANTHROPIC_API_KEY=sk-ant-your-key-here
+      # ANTHROPIC_MODEL_PREF=claude-sonnet-4-6
+      ```
+    </CodeGroup>
+
+    After saving your LLM settings, AnythingLLM will verify the connection. A green checkmark confirms the provider is reachable and the model is available.
+  </Step>
+
+  <Step title="Create a workspace and upload a document">
+    Workspaces are isolated chat environments — each one has its own document set, system prompt, and settings. Think of them as separate AI assistants for different projects or topics.
+
+    1. From the home screen, click **"New Workspace"** and give it a name (e.g. `My First Workspace`).
+    2. Once inside the workspace, click the **document upload icon** (paperclip or upload button in the sidebar).
+    3. Drag and drop a PDF, DOCX, TXT, or other supported file. AnythingLLM will automatically chunk, embed, and index it.
+    4. Toggle the document **on** in the workspace panel to make it available for RAG retrieval.
+
+    Supported document types include PDF, TXT, DOCX, CSV, JSON, XML, and many more. You can also paste raw text, link to web pages, or connect data sources directly from the UI.
+  </Step>
+
+  <Step title="Send your first chat and explore agents">
+    You're ready to chat. Type a question in the message box — AnythingLLM will search your uploaded documents and respond with grounded answers, showing source citations below the response.
+
+    **Enable AI Agents (optional):**
+
+    Agents can browse the web, execute code, summarize files, and more. To enable them:
+
+    1. Open **Workspace Settings** (the gear icon next to the workspace name).
+    2. Navigate to the **Agent** tab and toggle on the skills you want (e.g. web browsing, code execution).
+    3. Switch the chat mode from **Chat** to **Agent** using the selector in the message bar.
+    4. Send a message like `Search the web for the latest news about AI agents` to see it in action.
+
+    <Tip>
+      You can also build no-code agent workflows using the **Agent Flows** builder in the admin panel. Agent flows let you chain tools, conditions, and LLM calls into repeatable automations.
+    </Tip>
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Next Steps
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+<CardGroup cols={2}>
+  <Card title="Docker Installation" icon="docker" href="/installation/docker">
+    Learn about volume mounts, environment variables, GPU support, and Docker Compose.
+  </Card>
+  <Card title="Desktop App" icon="desktop" href="/installation/desktop">
+    Install the native desktop app for a zero-setup local AI experience.
+  </Card>
+  <Card title="Bare Metal Setup" icon="server" href="/installation/bare-metal">
+    Run AnythingLLM directly on Linux or macOS without containers.
+  </Card>
+  <Card title="Configuration Reference" icon="sliders" href="https://docs.anythingllm.com/configuration">
+    Full list of environment variables and advanced configuration options.
+  </Card>
+</CardGroup>

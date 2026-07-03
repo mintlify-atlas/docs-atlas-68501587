@@ -1,0 +1,171 @@
+---
+title: "Embed an AI Chat Widget on Any Website"
+sidebarTitle: "Embed Widget"
+description: "Add AnythingLLM's embeddable chat widget to any website with a script tag. Scope it to a workspace, set domain allowlists, and customize appearance."
+---
+
+AnythingLLM's embed widget lets you drop a fully functional AI chat interface onto any webpage with a single `<script>` tag. Each embed is scoped to a specific workspace, so the widget chats against that workspace's documents and settings. Embed sessions are completely isolated from your main AnythingLLM UI—embed users can never see or influence chats from your internal team, and vice versa. You can create multiple embeds pointing at different workspaces, set per-domain allowlists, rate-limit usage, and configure chat mode per embed.
+
+<Warning>
+  The embed widget is available in the **Docker (server) version** of AnythingLLM only. It is **not available** in the AnythingLLM Desktop application.
+</Warning>
+
+## Creating an Embed
+
+<Steps>
+  <Step title="Open the Embed manager">
+    Navigate to **Admin → Embedded Chat** in your AnythingLLM instance. Click **New Embed** to open the configuration form.
+  </Step>
+  <Step title="Select a workspace">
+    Choose the workspace this embed will chat against. All embedded conversations will use that workspace's system prompt, embedded documents, LLM settings, and chat mode.
+  </Step>
+  <Step title="Configure the embed options">
+    Fill in the fields described in [Embed Configuration Options](#embed-configuration-options) below. At minimum you should set **Allowed Domains** before using the embed in production.
+  </Step>
+  <Step title="Copy the script tag">
+    After saving, AnythingLLM generates a unique embed script tag. Copy it and paste it into the `<body>` of any webpage where you want the chat widget to appear.
+  </Step>
+</Steps>
+
+## Embed Configuration Options
+
+<Accordion title="Workspace">
+  Which workspace the embed chats against. All documents embedded in that workspace are available to the widget. The workspace's **chat mode** (`chat` or `query`) sets the default behavior for the embed.
+
+  Valid embed chat modes are `chat` (full conversational mode) and `query` (retrieval-only, no open-ended generation). The automatic mode used by some workspaces is **not supported** for embeds.
+</Accordion>
+
+<Accordion title="Allowed Domains (allowlist_domains)">
+  A comma-separated list of domains that are permitted to load and use this embed. AnythingLLM parses each entry as a URL and rejects requests from any origin not in the list.
+
+  ```
+  https://yourcompany.com, https://app.yourcompany.com, https://docs.yourcompany.com
+  ```
+
+  Leave blank to accept requests from **any origin** (not recommended for production). See [`EMBED_REQUIRE_ALLOWLIST`](#embed_require_allowlist) for a server-level hardening option.
+</Accordion>
+
+<Accordion title="Chat Mode (chat_mode)">
+  Controls whether the embed uses `chat` mode (full conversational context) or `query` mode (each message is independent, retrieval-focused). Defaults to `query` if not specified or if an unsupported value is provided.
+</Accordion>
+
+<Accordion title="Max Chats Per Day (max_chats_per_day)">
+  Rate-limits the total number of chat messages the embed will process per calendar day (UTC). Once the limit is reached, the widget stops responding until the next day. Set to `null` (leave blank) for no limit.
+</Accordion>
+
+<Accordion title="Max Chats Per Session (max_chats_per_session)">
+  Rate-limits the number of messages per browser session. Once a user hits this count, the widget stops responding for that session. Set to `null` for no per-session limit.
+</Accordion>
+
+<Accordion title="Message Limit (message_limit)">
+  Controls how many prior messages from the session are included in each request for conversation context. Similar to workspace history depth but scoped to the embed session.
+</Accordion>
+
+<Accordion title="Allow Model Override (allow_model_override)">
+  When enabled (`true`), the embed script can pass a `model` parameter in the chat request body to override the workspace's default LLM model for that session. Disabled by default.
+</Accordion>
+
+<Accordion title="Allow Temperature Override (allow_temperature_override)">
+  When enabled, the embed script can pass a `temperature` parameter to adjust the LLM's response temperature. Disabled by default.
+</Accordion>
+
+<Accordion title="Allow Prompt Override (allow_prompt_override)">
+  When enabled, the embed script can pass a `prompt` parameter to override the workspace system prompt for that session. Disabled by default.
+</Accordion>
+
+## Embed Script Tag
+
+After creating an embed, AnythingLLM gives you a `<script>` tag to paste into your site:
+
+```html
+<script
+  data-embed-id="YOUR_EMBED_UUID"
+  data-base-api-url="https://your-anythingllm-instance.com/api"
+  src="https://your-anythingllm-instance.com/embed/anythingllm-chat-widget.min.js">
+</script>
+```
+
+Place this tag just before the closing `</body>` tag on any page where you want the widget to appear. The widget renders as a floating chat button in the bottom-right corner by default.
+
+### Optional Script Attributes
+
+You can pass additional `data-*` attributes on the script tag to customize behavior at load time:
+
+```html
+<script
+  data-embed-id="YOUR_EMBED_UUID"
+  data-base-api-url="https://your-anythingllm-instance.com/api"
+  data-brand-image-url="https://yourcompany.com/logo.png"
+  data-assistant-name="Acme Support Bot"
+  data-greeting="Hi! How can I help you today?"
+  data-username="John Doe"
+  src="https://your-anythingllm-instance.com/embed/anythingllm-chat-widget.min.js">
+</script>
+```
+
+## Session Isolation
+
+Every embed user is assigned a unique `sessionId` generated in the browser. Chat history is scoped to that session ID—no embed user can see another user's messages, and no embed session ever bleeds into the main AnythingLLM workspace chat history. Sources are also stripped from embed API responses to prevent inadvertent leakage of document metadata to end users.
+
+When you delete or invalidate a session (`DELETE /embed/:embedId/:sessionId`), the chat history for that session is marked as invalid and excluded from future context.
+
+## API Endpoints
+
+The embed widget communicates with these server endpoints:
+
+<CodeGroup>
+  ```http Stream Chat
+  POST /embed/:embedId/stream-chat
+
+  Body:
+  {
+    "sessionId": "browser-generated-uuid",
+    "message": "What is your return policy?",
+    "prompt": null,      // optional override (if allow_prompt_override)
+    "model": null,       // optional override (if allow_model_override)
+    "temperature": null, // optional override (if allow_temperature_override)
+    "username": null     // optional display name for the user
+  }
+  ```
+
+  ```http Get Session History
+  GET /embed/:embedId/:sessionId
+
+  Response:
+  {
+    "history": [
+      { "role": "user", "content": "..." },
+      { "role": "assistant", "content": "..." }
+    ]
+  }
+  ```
+
+  ```http Clear Session History
+  DELETE /embed/:embedId/:sessionId
+  ```
+</CodeGroup>
+
+All responses from the stream-chat endpoint are **server-sent events (SSE)** streamed in real time.
+
+## EMBED_REQUIRE_ALLOWLIST
+
+The `EMBED_REQUIRE_ALLOWLIST` environment variable provides a server-level safety net for embeds that have no domain allowlist configured:
+
+```bash
+# docker/.env
+EMBED_REQUIRE_ALLOWLIST="true"
+```
+
+When this variable is set to `"true"`, any embed that has **no** `allowlist_domains` configured will **reject all requests** instead of accepting them from any origin. Embeds that do have an allowlist are unaffected.
+
+<Warning>
+  In production, always set either an **Allowed Domains** list on each embed or enable `EMBED_REQUIRE_ALLOWLIST="true"` at the server level. Without one of these safeguards, any website on the internet can embed your widget and consume your LLM API quota.
+</Warning>
+
+## Embed Validation Middleware
+
+Before any request reaches the chat handler, AnythingLLM runs three middleware checks:
+
+1. **`validEmbedConfig`** — verifies the embed UUID exists in the database and the embed is enabled.
+2. **`setConnectionMeta`** — records connection metadata (IP, user-agent, referrer) for audit purposes.
+3. **`canRespond`** — checks the origin against the domain allowlist, enforces `max_chats_per_day` and `max_chats_per_session` rate limits, and rejects the request with an appropriate error if any limit is exceeded.

@@ -1,0 +1,131 @@
+---
+title: "Multimodal AI: Images and Vision in AnythingLLM"
+sidebarTitle: "Multimodal"
+description: "AnythingLLM supports multimodal LLMs for image understanding. Attach images to chats and use vision-capable models from OpenAI, Anthropic, Gemini, and others."
+---
+
+Multimodal support in AnythingLLM means you can send images alongside text in any chat and receive responses that reason about visual content. A vision-capable model can read a screenshot of an error message, describe the contents of a chart, compare product images, or extract information from a photo of a document — all within the same workspace chat interface you already use for text-only conversations. AnythingLLM also ships with configurable Speech-to-Text (STT) and Text-to-Speech (TTS) providers so that voice interaction is possible alongside visual input.
+
+<Note>
+  Multimodal image understanding requires a **vision-capable model** to be configured. If your selected model does not support vision, image attachments will either be ignored or cause an API error. See the supported providers section below.
+</Note>
+
+## Supported Vision-Capable Providers
+
+<AccordionGroup>
+  <Accordion title="OpenAI">
+    OpenAI's `gpt-4o` and other GPT-4 series models with vision support accept images encoded as base64 data URLs or public HTTPS URLs. AnythingLLM sends images using the `image_url` content block format supported by the OpenAI API.
+
+    **Recommended model:** `gpt-4o`
+  </Accordion>
+  <Accordion title="Anthropic (Claude)">
+    Claude 3 and Claude 3.5 / 3.7 models accept images as base64-encoded `image` content blocks. AnythingLLM extracts the base64 data from the attachment and sends it with the correct `media_type` (`image/png`, `image/jpeg`, etc.).
+
+    **Default model:** `claude-3-5-sonnet-20241022`
+  </Accordion>
+  <Accordion title="Google Gemini">
+    Gemini models support multimodal inputs via `image_url` content blocks. Pass the image as a base64 data URL and Gemini will process it alongside the text prompt.
+  </Accordion>
+  <Accordion title="Other providers">
+    Any provider whose API follows the OpenAI multimodal message format (Groq, OpenRouter, generic OpenAI-compatible endpoints, etc.) will work as long as the underlying model supports vision. Check your provider's documentation to confirm vision support before selecting a model.
+  </Accordion>
+</AccordionGroup>
+
+## Attaching Images in Chat
+
+<Steps>
+  <Step title="Select a vision-capable workspace">
+    Make sure the workspace (or the global setting) is configured to use a model that supports vision. You can verify or change the model in **Workspace Settings → LLM Provider**.
+  </Step>
+  <Step title="Attach an image">
+    In the chat input area, click the **paperclip** (attachment) icon and select an image file (PNG, JPG, JPEG, or WEBP). You can attach multiple images in a single message.
+  </Step>
+  <Step title="Send your message">
+    Type your question about the image and press Send. The image is encoded as a base64 data URL and sent to the LLM alongside your text message.
+  </Step>
+  <Step title="Receive a visual response">
+    The model analyzes the image and responds based on both the image content and any text query you provided. Responses can include descriptions, extracted text, data analysis, or answers to questions about the image.
+  </Step>
+</Steps>
+
+## OCR: Image-Based PDFs and Standalone Images
+
+For document ingestion (as opposed to chat attachments), AnythingLLM uses [Tesseract.js](https://github.com/naptha/tesseract.js) OCR to extract text from:
+
+- **Image-only PDFs** — PDFs with no embedded text layer (e.g., scanned documents)
+- **Standalone image files** — PNG, JPG, JPEG, WEBP
+
+OCR runs automatically as part of the ingestion pipeline. No manual configuration is needed. The default OCR language is English (`eng`). Configure additional languages via the `TARGET_OCR_LANG` environment variable:
+
+```bash
+# Example: English + Spanish + French
+TARGET_OCR_LANG=eng,spa,fra
+```
+
+Language model data is cached under `storage/models/tesseract/` on first use.
+
+## Speech-to-Text (STT)
+
+STT converts spoken audio into text so you can dictate messages or upload audio files for transcription.
+
+<Tabs>
+  <Tab title="Providers">
+    | Provider | Environment Variable | Notes |
+    |---|---|---|
+    | **Native (Xenova Whisper)** | `STT_PROVIDER=native` | Runs locally. Default model: `Xenova/whisper-small`. Change with `WHISPER_MODEL_PREF`. |
+    | **OpenAI Whisper** | `STT_PROVIDER=openai` | Uses the OpenAI API. Configure model with `STT_OPEN_AI_MODEL`. |
+    | **Deepgram** | `STT_PROVIDER=deepgram` | Requires `STT_DEEPGRAM_API_KEY`. Configure model with `STT_DEEPGRAM_MODEL`. |
+    | **Groq** | `STT_PROVIDER=groq` | Requires `STT_GROQ_API_KEY`. Configure model with `STT_GROQ_MODEL`. |
+    | **Generic OpenAI-compatible** | `STT_PROVIDER=generic-openai` | Requires `STT_OPEN_AI_COMPATIBLE_KEY`, `STT_OPEN_AI_COMPATIBLE_MODEL`, and `STT_OPEN_AI_COMPATIBLE_ENDPOINT`. |
+    | **Lemonade** | `STT_PROVIDER=lemonade` | Local runner. Configure with `STT_LEMONADE_BASE_PATH` and `STT_LEMONADE_MODEL_PREF`. |
+  </Tab>
+  <Tab title="Configuration">
+    STT is configured in **Settings → Voice & Speech → Speech-to-Text**. Select your preferred provider and enter any required API keys. The native Whisper provider requires no API key and runs entirely on your server.
+
+    ```bash
+    # Example: Use OpenAI Whisper
+    STT_PROVIDER=openai
+    STT_OPEN_AI_MODEL=whisper-1
+    ```
+
+    Audio files uploaded for transcription (`.mp3`, `.wav`, `.mp4`, `.m4a`, `.ogg`, `.opus`, `.webm`) are converted to WAV format internally before being sent to the STT provider.
+  </Tab>
+</Tabs>
+
+## Text-to-Speech (TTS)
+
+TTS converts the model's text responses into spoken audio, which is played back in the chat UI.
+
+<Tabs>
+  <Tab title="Providers">
+    | Provider | Environment Variable | Notes |
+    |---|---|---|
+    | **Native (browser)** | `TTS_PROVIDER=native` | Uses the browser's built-in Web Speech API. No API key required. |
+    | **OpenAI** | `TTS_PROVIDER=openai` | Requires `TTS_OPEN_AI_KEY`. Configure voice with `TTS_OPEN_AI_VOICE_MODEL`. |
+    | **ElevenLabs** | `TTS_PROVIDER=elevenlabs` | Requires `TTS_ELEVEN_LABS_KEY`. Configure voice with `TTS_ELEVEN_LABS_VOICE_MODEL`. |
+    | **Kokoro** | `TTS_PROVIDER=kokoro` | Self-hosted. Configure with `TTS_KOKORO_ENDPOINT`, `TTS_KOKORO_KEY`, and `TTS_KOKORO_VOICE_MODEL`. |
+    | **Piper TTS** | `TTS_PROVIDER=piper` | Self-hosted. Configure voice with `TTS_PIPER_VOICE_MODEL` (default: `en_US-hfc_female-medium`). |
+    | **Generic OpenAI-compatible** | `TTS_PROVIDER=generic-openai` | Requires `TTS_OPEN_AI_COMPATIBLE_KEY`, `TTS_OPEN_AI_COMPATIBLE_MODEL`, `TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL`, and `TTS_OPEN_AI_COMPATIBLE_ENDPOINT`. |
+  </Tab>
+  <Tab title="Configuration">
+    TTS is configured in **Settings → Voice & Speech → Text-to-Speech**. Select your provider, enter the required credentials, and choose a voice model.
+
+    ```bash
+    # Example: ElevenLabs TTS
+    TTS_PROVIDER=elevenlabs
+    TTS_ELEVEN_LABS_KEY=your-api-key
+    TTS_ELEVEN_LABS_VOICE_MODEL=your-voice-id
+    ```
+
+    Once configured, a speaker icon appears on each AI response in the chat UI. Click it to hear the response read aloud.
+  </Tab>
+</Tabs>
+
+## Combining Vision, STT, and TTS
+
+These three capabilities are independent — you can mix and match them to build the experience that fits your use case:
+
+- **Vision only** — Attach images to text chats for visual question answering or document analysis.
+- **STT only** — Dictate messages or upload audio recordings for transcription without needing a vision model.
+- **TTS only** — Have the assistant read its responses aloud while interacting via text.
+- **All three** — Full voice-and-vision interaction: speak your question, attach an image, and have the response read back to you.

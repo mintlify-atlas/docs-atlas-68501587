@@ -1,0 +1,243 @@
+---
+title: "Embed Configuration API Endpoints"
+sidebarTitle: "Embeds"
+description: "REST API endpoints to create, retrieve, update, and delete embedded chat widget configurations and view embed chat session history."
+---
+
+AnythingLLM's Embed feature lets you drop a chat widget into any website by generating a JavaScript snippet tied to a workspace. Each embed has its own configuration — chat mode, domain allowlist, rate limits, and toggle switches that let end-users override the model, temperature, or system prompt. The Embeds API gives you full programmatic control over these configurations and provides read access to the conversations that happen through embedded widgets.
+
+<Note>
+  Embed configurations are identified by a UUID. When you create an embed the
+  response includes the `uuid` field — store this value, as you will need it for
+  all subsequent read, update, and delete operations.
+</Note>
+
+---
+
+## GET /v1/embed
+
+Return a list of every embed configuration on the instance, including a chat message count and the associated workspace name.
+
+### Response Fields
+
+<ResponseField name="embeds" type="array">
+  <Expandable title="embed object fields">
+    <ResponseField name="id" type="integer">Database row ID.</ResponseField>
+    <ResponseField name="uuid" type="string">Unique embed identifier (used in the widget script `src`).</ResponseField>
+    <ResponseField name="enabled" type="boolean">Whether the embed is currently active.</ResponseField>
+    <ResponseField name="chat_mode" type="string">`"chat"` or `"query"`.</ResponseField>
+    <ResponseField name="createdAt" type="string">ISO timestamp of creation.</ResponseField>
+    <ResponseField name="workspace" type="object">
+      Nested workspace summary with `id` and `name`.
+    </ResponseField>
+    <ResponseField name="chat_count" type="integer">Total number of chat messages sent through this embed.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/embed \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/embed/new
+
+Create a new embed configuration tied to a workspace. Returns the full embed object on success.
+
+### Body Parameters
+
+<ParamField body="workspace_slug" type="string" required>
+  Slug of the workspace this embed will use for chat context.
+</ParamField>
+
+<ParamField body="chat_mode" type="string">
+  Conversation mode for the widget: `"chat"` (general knowledge + documents) or `"query"` (documents only). Default `"chat"`.
+</ParamField>
+
+<ParamField body="allowlist_domains" type="array">
+  Array of domain strings that are permitted to load the widget. Leave empty to allow any domain. Example: `["example.com", "app.example.com"]`.
+</ParamField>
+
+<ParamField body="allow_model_override" type="boolean">
+  Allow the embedded widget to accept a `model` parameter that overrides the workspace's default LLM. Default `false`.
+</ParamField>
+
+<ParamField body="allow_temperature_override" type="boolean">
+  Allow the widget to accept a `temperature` override. Default `false`.
+</ParamField>
+
+<ParamField body="allow_prompt_override" type="boolean">
+  Allow the widget to accept a custom system `prompt` override. Default `false`.
+</ParamField>
+
+<ParamField body="max_chats_per_day" type="integer">
+  Maximum total chat messages this embed will process across all sessions in a 24-hour period. `null` for unlimited.
+</ParamField>
+
+<ParamField body="max_chats_per_session" type="integer">
+  Maximum chat messages per individual session. `null` for unlimited.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="embed" type="object">
+  <Expandable title="embed object fields">
+    <ResponseField name="id" type="integer">Database row ID.</ResponseField>
+    <ResponseField name="uuid" type="string">Unique embed UUID — use this in the widget script.</ResponseField>
+    <ResponseField name="enabled" type="boolean">Whether the embed is active.</ResponseField>
+    <ResponseField name="chat_mode" type="string">Assigned chat mode.</ResponseField>
+    <ResponseField name="allowlist_domains" type="array">Permitted domain list.</ResponseField>
+    <ResponseField name="allow_model_override" type="boolean">Model override flag.</ResponseField>
+    <ResponseField name="allow_temperature_override" type="boolean">Temperature override flag.</ResponseField>
+    <ResponseField name="allow_prompt_override" type="boolean">Prompt override flag.</ResponseField>
+    <ResponseField name="max_chats_per_day" type="integer | null">Daily chat cap.</ResponseField>
+    <ResponseField name="max_chats_per_session" type="integer | null">Per-session chat cap.</ResponseField>
+    <ResponseField name="createdAt" type="string">ISO creation timestamp.</ResponseField>
+    <ResponseField name="workspace_slug" type="string">Slug of the linked workspace.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="string | null">`null` on success or an error description.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/embed/new \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_slug": "product-docs",
+    "chat_mode": "query",
+    "allowlist_domains": ["example.com"],
+    "allow_model_override": false,
+    "allow_temperature_override": false,
+    "allow_prompt_override": false,
+    "max_chats_per_day": 500,
+    "max_chats_per_session": 20
+  }'
+```
+
+---
+
+## GET /v1/embed/\{embedUuid\}/chats
+
+Retrieve all chat messages sent through a specific embed, across all user sessions.
+
+### Path Parameters
+
+<ParamField path="embedUuid" type="string" required>
+  UUID of the embed to inspect.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="chats" type="array">
+  <Expandable title="chat object fields">
+    <ResponseField name="id" type="integer">Chat message database ID.</ResponseField>
+    <ResponseField name="session_id" type="string">UUID identifying the anonymous session the message belongs to.</ResponseField>
+    <ResponseField name="prompt" type="string">The user's message.</ResponseField>
+    <ResponseField name="response" type="string">The assistant's reply.</ResponseField>
+    <ResponseField name="createdAt" type="string">ISO timestamp of the exchange.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/embed/embed-uuid-1/chats \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/embed/\{embedUuid\}/chats/\{sessionUuid\}
+
+Retrieve the chat history for a specific embed session. Useful for reviewing a single anonymous user's conversation.
+
+### Path Parameters
+
+<ParamField path="embedUuid" type="string" required>
+  UUID of the embed.
+</ParamField>
+
+<ParamField path="sessionUuid" type="string" required>
+  UUID of the session to retrieve.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="chats" type="array">
+  <Expandable title="chat object fields">
+    <ResponseField name="id" type="integer">Message database ID.</ResponseField>
+    <ResponseField name="prompt" type="string">User's message.</ResponseField>
+    <ResponseField name="response" type="string">Assistant's reply.</ResponseField>
+    <ResponseField name="createdAt" type="string">ISO timestamp.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/embed/embed-uuid-1/chats/session-uuid-abc \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/embed/\{embedUuid\}
+
+Update the configuration of an existing embed. All fields are optional — only the ones you supply will be changed.
+
+### Path Parameters
+
+<ParamField path="embedUuid" type="string" required>
+  UUID of the embed to update.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="enabled" type="boolean">Enable or disable the embed widget.</ParamField>
+<ParamField body="chat_mode" type="string">Update the conversation mode: `"chat"` or `"query"`.</ParamField>
+<ParamField body="allowlist_domains" type="array">Replace the domain allowlist.</ParamField>
+<ParamField body="allow_model_override" type="boolean">Toggle model override permission.</ParamField>
+<ParamField body="allow_temperature_override" type="boolean">Toggle temperature override permission.</ParamField>
+<ParamField body="allow_prompt_override" type="boolean">Toggle prompt override permission.</ParamField>
+<ParamField body="max_chats_per_day" type="integer">Update the daily chat cap.</ParamField>
+<ParamField body="max_chats_per_session" type="integer">Update the per-session chat cap.</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the update was applied.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success or an error description.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/embed/embed-uuid-1 \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "max_chats_per_day": 1000,
+    "allowlist_domains": ["example.com", "beta.example.com"]
+  }'
+```
+
+---
+
+## DELETE /v1/embed/\{embedUuid\}
+
+Permanently delete an embed configuration. The widget script on any site still referencing this UUID will stop functioning immediately.
+
+<Warning>
+  Deleting an embed is permanent and cannot be undone. Any chat history associated with the embed will also be removed.
+</Warning>
+
+### Path Parameters
+
+<ParamField path="embedUuid" type="string" required>
+  UUID of the embed to delete.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the deletion was successful.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success or an error message.</ResponseField>
+
+```bash
+curl -X DELETE https://your-instance.com/api/v1/embed/embed-uuid-1 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```

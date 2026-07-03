@@ -1,0 +1,142 @@
+---
+title: "MCP Server Compatibility in AnythingLLM"
+sidebarTitle: "MCP Compatibility"
+description: "AnythingLLM supports the Model Context Protocol (MCP). Connect any MCP server to expose its tools to AnythingLLM agents, expanding capabilities without custom code."
+---
+
+The **Model Context Protocol (MCP)** is an open standard that defines a common interface for AI models to communicate with external tools and data sources. AnythingLLM acts as an MCP **client**: it boots your configured MCP servers, discovers their tools, and automatically converts each tool into a callable function available to the agent runtime. This means any MCP-compatible server — whether it controls Docker containers, queries databases, posts to Slack, or reads a local filesystem — becomes an agent tool with zero custom code on your part.
+
+## How It Works
+
+AnythingLLM's MCP layer is built around two classes:
+
+- **`MCPHypervisor`** — Manages the lifecycle of every configured MCP server (boot, stop, reload, per-tool suppression). Reads server definitions from `{STORAGE_DIR}/plugins/anythingllm_mcp_servers.json`.
+- **`MCPCompatibilityLayer`** — A singleton that inherits from `MCPHypervisor` and exposes MCP server tools to the aibitat agent engine. It calls `listTools()` on each running server and wraps every tool in an aibitat-compatible plugin, registered under the identifier `@@mcp_{serverName}`.
+
+When an agent run starts, each active MCP tool appears in the agent's function list alongside built-in skills. The [skill reranker](/agents/overview#intelligent-tool-selection-skill-reranker) scores MCP tool descriptions against the user query and includes only the most relevant ones in the prompt, keeping token usage in check even when you have dozens of MCP tools installed.
+
+## Supported Transport Types
+
+AnythingLLM supports three MCP transport types:
+
+| Transport | Config field | Description |
+|---|---|---|
+| **stdio** | `command` + optional `args` | Launches a local process (e.g., `npx`, `python`) and communicates via standard I/O. Most common for locally installed MCP servers. |
+| **SSE** | `url` + `"type": "sse"` | Connects to a remote MCP server over Server-Sent Events. |
+| **Streamable HTTP** | `url` + `"type": "streamable"` or `"http"` | Connects to a remote MCP server using the Streamable HTTP transport. |
+
+## Connecting an MCP Server
+
+<Steps>
+  <Step title="Open MCP Settings">
+    In AnythingLLM, navigate to **System Settings → MCP Servers**. This page lists all currently configured servers, their running status, and the tools each server exposes.
+  </Step>
+  <Step title="Add a Server Definition">
+    Click **Add MCP Server** and fill in the server configuration. The exact fields depend on the transport type.
+
+    <Tabs>
+      <Tab title="stdio (local process)">
+        ```json
+        {
+          "mcpServers": {
+            "my-server": {
+              "command": "npx",
+              "args": ["-y", "@some-org/some-mcp-server"],
+              "env": {
+                "API_KEY": "your-api-key-here"
+              }
+            }
+          }
+        }
+        ```
+
+        - `command` — The executable to run (must be available in `PATH`).
+        - `args` — Array of arguments passed to the command.
+        - `env` — Optional environment variables injected into the server process.
+      </Tab>
+      <Tab title="SSE (remote server)">
+        ```json
+        {
+          "mcpServers": {
+            "remote-sse-server": {
+              "url": "https://your-mcp-server.example.com/sse",
+              "type": "sse",
+              "headers": {
+                "Authorization": "Bearer your-token"
+              }
+            }
+          }
+        }
+        ```
+      </Tab>
+      <Tab title="Streamable HTTP">
+        ```json
+        {
+          "mcpServers": {
+            "remote-http-server": {
+              "url": "https://your-mcp-server.example.com/mcp",
+              "type": "streamable",
+              "headers": {
+                "Authorization": "Bearer your-token"
+              }
+            }
+          }
+        }
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  <Step title="Start the Server">
+    After saving, toggle the server **On** from the MCP Servers settings page. AnythingLLM will launch the process (for stdio) or open the connection (for HTTP/SSE), call `listTools()`, and register each discovered tool.
+  </Step>
+  <Step title="Verify Tools Are Available">
+    The settings page displays each tool name, description, and input schema returned by the server. A green status indicator confirms the server is running and reachable.
+  </Step>
+  <Step title="Use the Tools in an Agent">
+    Open any workspace chat and invoke `@agent`. The MCP tools are now part of the agent's function list and will be selected automatically when relevant to the user's query.
+  </Step>
+</Steps>
+
+## Suppressing Individual Tools
+
+If an MCP server exposes many tools but you only want the agent to use a subset, you can suppress specific tools from the MCP Servers settings page. Toggle individual tools off — suppressed tools are recorded in the server's config under `anythingllm.suppressedTools` and are excluded from the agent's function list at runtime.
+
+## MCP Cooldown
+
+By default, each MCP tool call is placed on a **cooldown** immediately after execution. This prevents certain model/provider combinations from calling the same MCP tool in rapid succession, which can happen when a model misinterprets a completed tool result and retries unnecessarily.
+
+<Warning>
+  Setting `MCP_NO_COOLDOWN="true"` disables the per-tool cooldown entirely. Without cooldown protection, some LLM providers may enter **infinite recursive loops**, calling the same MCP tool over and over for a single agent response. Only set this flag if you specifically need to call the same MCP tool multiple times in one turn (e.g., creating three separate Jira tickets) and your model handles tool-call deduplication correctly.
+
+  ```bash
+  MCP_NO_COOLDOWN="true"
+  ```
+</Warning>
+
+## Fallback Tool Calling for Problematic Providers
+
+Native tool calling (function calling via the provider's API) is enabled by default for all providers that support it. If you find that a specific provider or custom endpoint misbehaves with native tool calling — producing malformed calls or ignoring tools entirely — you can force it to use prompt-based (un-tooled) tool calling instead:
+
+```bash
+PROVIDER_DISABLE_NATIVE_TOOL_CALLING="generic-openai,my-custom-provider"
+```
+
+Provide a comma-separated list of provider identifiers. Affected providers will use the `UnTooled` strategy, which injects tool definitions directly into the system prompt rather than via the API's native function-calling mechanism.
+
+## Config File Location
+
+MCP server definitions are stored in:
+
+```
+{STORAGE_DIR}/plugins/anythingllm_mcp_servers.json
+```
+
+AnythingLLM creates this file automatically on first startup if it doesn't exist. You can edit it directly as JSON, or manage servers entirely through the UI — both methods write to the same file.
+
+## Notes on Docker Deployments
+
+When running AnythingLLM in Docker, `stdio`-based MCP servers spawn as child processes **inside the container**. The server's `command` must be available within the container's `PATH`. Tools like `npx` are available in the AnythingLLM Docker image, but complex MCP servers with native dependencies may require a custom Docker image or a remote HTTP/SSE transport instead.
+
+<Note>
+  MCP is essentially arbitrary code execution. AnythingLLM does not audit MCP server implementations for security. Review the source and provenance of any MCP server before connecting it to your AnythingLLM instance, especially in production environments.
+</Note>

@@ -1,0 +1,389 @@
+---
+title: "Document API Endpoints — Upload, List, and Manage"
+sidebarTitle: "Documents"
+description: "REST API endpoints to upload documents and URLs, list document library contents, move files between folders, and delete documents in AnythingLLM."
+---
+
+The Documents API controls the raw document library — the central store of parsed files that sit beneath all workspace embeddings. You can upload files directly, scrape URLs, or push plain text through the API; browse the folder hierarchy; create and remove folders; and move files between them. Uploading a document does not automatically embed it into a workspace — use the [workspace `update-embeddings` endpoint](/api-reference/workspaces#post-v1-workspace-slug-update-embeddings) for that step. All requests require a valid Bearer token.
+
+<Note>
+  The document collector service must be running for file and URL uploads to be processed. If the service is offline you will receive a `500` response with the message `"Document processing API is not online"`.
+</Note>
+
+---
+
+## POST /v1/document/upload
+
+Upload a file to the AnythingLLM document library. The file is parsed, chunked, and stored as a JSON document ready for embedding. Optionally specify workspaces to embed the document into immediately after upload.
+
+### Body Parameters
+
+<ParamField body="file" type="file" required>
+  The binary file to upload. Send as `multipart/form-data`.
+</ParamField>
+
+<ParamField body="addToWorkspaces" type="string">
+  Comma-separated list of workspace slugs to automatically embed the document into after upload. Example: `"workspace-a,workspace-b"`.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Key-value pairs of metadata to attach to the document. Supported keys: `title`, `docAuthor`, `description`, `docSource`.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the upload succeeded.</ResponseField>
+<ResponseField name="error" type="string | null">`null` on success or an error message.</ResponseField>
+<ResponseField name="documents" type="array">
+  <Expandable title="document object fields">
+    <ResponseField name="location" type="string">Relative path of the stored JSON document (e.g. `custom-documents/file-uuid.json`).</ResponseField>
+    <ResponseField name="name" type="string">Storage filename including UUID suffix.</ResponseField>
+    <ResponseField name="url" type="string">Internal `file://` URL of the original source.</ResponseField>
+    <ResponseField name="title" type="string">Human-readable document title.</ResponseField>
+    <ResponseField name="docAuthor" type="string">Author attribution.</ResponseField>
+    <ResponseField name="description" type="string">Document description.</ResponseField>
+    <ResponseField name="docSource" type="string">Source label (e.g. `"a text file uploaded by the user."`).</ResponseField>
+    <ResponseField name="chunkSource" type="string">Original filename used for chunking.</ResponseField>
+    <ResponseField name="published" type="string">Human-readable date of upload.</ResponseField>
+    <ResponseField name="wordCount" type="integer">Total word count of parsed text.</ResponseField>
+    <ResponseField name="token_count_estimate" type="integer">Estimated token count for the full document.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/document/upload \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@/path/to/document.pdf" \
+  -F "addToWorkspaces=product-docs,onboarding" \
+  -F 'metadata={"title":"Product Manual","docAuthor":"Engineering"}'
+```
+
+---
+
+## POST /v1/document/upload/\{folderName\}
+
+Upload a file directly into a named sub-folder. If the target folder does not exist it will be created automatically.
+
+### Path Parameters
+
+<ParamField path="folderName" type="string" required>
+  Name of the destination folder (e.g. `my-folder`). Defaults to `custom-documents` if the path parameter is omitted.
+</ParamField>
+
+### Body Parameters
+
+Same multipart fields as `POST /v1/document/upload`: `file` (required), `addToWorkspaces`, and `metadata`.
+
+### Response Fields
+
+Same response schema as `POST /v1/document/upload`.
+
+```bash
+curl -X POST https://your-instance.com/api/v1/document/upload/legal-contracts \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@/path/to/contract.pdf"
+```
+
+---
+
+## POST /v1/document/upload-link
+
+Provide a URL for AnythingLLM to scrape, parse, and store as a document. Optionally embed the result into one or more workspaces.
+
+### Body Parameters
+
+<ParamField body="link" type="string" required>
+  The publicly accessible URL to scrape (e.g. `"https://docs.example.com/overview"`).
+</ParamField>
+
+<ParamField body="addToWorkspaces" type="string">
+  Comma-separated workspace slugs to embed the scraped document into after processing.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Upload status.</ResponseField>
+<ResponseField name="error" type="string | null">Error or `null`.</ResponseField>
+<ResponseField name="documents" type="array">
+  <Expandable title="document object fields">
+    <ResponseField name="id" type="string">Document UUID.</ResponseField>
+    <ResponseField name="url" type="string">Internal storage URL of the scraped file.</ResponseField>
+    <ResponseField name="title" type="string">Filename derived from the URL.</ResponseField>
+    <ResponseField name="docAuthor" type="string">Detected author or `"no author found"`.</ResponseField>
+    <ResponseField name="description" type="string">Detected description or `"No description found."`.</ResponseField>
+    <ResponseField name="docSource" type="string">`"URL link uploaded by the user."`</ResponseField>
+    <ResponseField name="chunkSource" type="string">Original URL.</ResponseField>
+    <ResponseField name="published" type="string">Upload timestamp.</ResponseField>
+    <ResponseField name="wordCount" type="integer">Word count of scraped content.</ResponseField>
+    <ResponseField name="pageContent" type="string">Extracted plain-text content.</ResponseField>
+    <ResponseField name="token_count_estimate" type="integer">Estimated token count.</ResponseField>
+    <ResponseField name="location" type="string">Storage path of the created JSON document.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/document/upload-link \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "link": "https://docs.anythingllm.com/overview",
+    "addToWorkspaces": "product-docs"
+  }'
+```
+
+---
+
+## POST /v1/document/raw-text
+
+Upload a document by providing its text content directly as a string — no file required. The metadata `title` key is required.
+
+### Body Parameters
+
+<ParamField body="textContent" type="string" required>
+  The full plain-text content to store as a document.
+</ParamField>
+
+<ParamField body="metadata" type="object" required>
+  Metadata object. The `title` key is **required**. Additional keys must match the schema returned by `GET /v1/document/metadata-schema`.
+</ParamField>
+
+<ParamField body="addToWorkspaces" type="string">
+  Comma-separated workspace slugs to embed the document into after creation.
+</ParamField>
+
+### Response Fields
+
+Same schema as `POST /v1/document/upload`.
+
+```bash
+curl -X POST https://your-instance.com/api/v1/document/raw-text \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "textContent": "AnythingLLM is a self-hosted, all-in-one AI platform...",
+    "metadata": {
+      "title": "AnythingLLM Overview",
+      "docAuthor": "Mintplex Labs",
+      "description": "Overview of the AnythingLLM platform"
+    },
+    "addToWorkspaces": "product-docs"
+  }'
+```
+
+---
+
+## GET /v1/documents
+
+List every document currently stored in the local document library, organized as a folder tree.
+
+### Response Fields
+
+<ResponseField name="localFiles" type="object">
+  <Expandable title="localFiles structure">
+    <ResponseField name="name" type="string">Root folder name (`"documents"`).</ResponseField>
+    <ResponseField name="type" type="string">`"folder"`</ResponseField>
+    <ResponseField name="items" type="array">
+      Array of file and folder objects. Each item has `name`, `type` (`"file"` or `"folder"`), `id`, `url`, `title`, and `cached` fields.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/documents \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/documents/folder/\{folderName\}
+
+Retrieve all documents stored inside a specific folder.
+
+### Path Parameters
+
+<ParamField path="folderName" type="string" required>
+  Name of the folder to inspect (e.g. `custom-documents` or `legal-contracts`).
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="folder" type="string">Name of the queried folder.</ResponseField>
+<ResponseField name="documents" type="array">
+  Array of document metadata objects including `name`, `type`, `cached`, `pinnedWorkspaces`, and `watched`.
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/documents/folder/custom-documents \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/document/accepted-file-types
+
+Return the file MIME types and corresponding extensions the document collector currently accepts for upload.
+
+### Response Fields
+
+<ResponseField name="types" type="object">
+  Map of MIME type strings to arrays of file extensions. Example:
+  ```json
+  {
+    "application/pdf": [".pdf"],
+    "text/plain": [".txt", ".md"]
+  }
+  ```
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/document/accepted-file-types \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/document/metadata-schema
+
+Return the known metadata key schema and acceptable value types for use when calling `POST /v1/document/raw-text`.
+
+### Response Fields
+
+<ResponseField name="schema" type="object">
+  Map of metadata key names to their accepted value type descriptor (e.g. `"string | number | nullable"` or `"string"`). The `title` key is always present and required.
+</ResponseField>
+
+```bash
+curl https://your-instance.com/api/v1/document/metadata-schema \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## GET /v1/document/\{docName\}
+
+Fetch the full metadata for a single stored document by its internal name (the UUID-suffixed JSON filename).
+
+### Path Parameters
+
+<ParamField path="docName" type="string" required>
+  Internal document filename as returned in the `name` field of list responses (e.g. `my-file.txt-uuid1234.json`).
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="localFiles" type="object">
+  Same structure as `GET /v1/documents`, scoped to the single matched document.
+</ResponseField>
+
+```bash
+curl "https://your-instance.com/api/v1/document/my-file.txt-bb07c334-4dab-4419-9462-9d00065a49a1.json" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## POST /v1/document/create-folder
+
+Create a new empty folder inside the documents storage directory.
+
+### Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name for the new folder (e.g. `"legal-contracts"`).
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the folder was created.</ResponseField>
+<ResponseField name="message" type="string | null">`null` on success or an error message.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/document/create-folder \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "legal-contracts"}'
+```
+
+---
+
+## DELETE /v1/document/remove-folder
+
+Remove a folder and **all** its contained documents from the storage directory. This is irreversible.
+
+<Warning>
+  Removing a folder permanently deletes its contents from the document library. Any workspace that had those documents embedded will lose access to that context.
+</Warning>
+
+### Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the folder to remove.
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether the folder was removed.</ResponseField>
+<ResponseField name="message" type="string">`"Folder removed successfully"` or an error description.</ResponseField>
+
+```bash
+curl -X DELETE https://your-instance.com/api/v1/document/remove-folder \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "old-archive"}'
+```
+
+---
+
+## POST /v1/document/move-files
+
+Move one or more documents from a source path to a destination path within the document library. Both `from` and `to` values are relative to the top-level `documents/` directory.
+
+### Body Parameters
+
+<ParamField body="files" type="array" required>
+  Array of move-operation objects.
+  <Expandable title="move object fields">
+    <ParamField body="from" type="string" required>Current relative path of the document (e.g. `"custom-documents/file-uuid.json"`).</ParamField>
+    <ParamField body="to" type="string" required>Target relative path including the destination folder (e.g. `"legal-contracts/file-uuid.json"`).</ParamField>
+  </Expandable>
+</ParamField>
+
+### Response Fields
+
+<ResponseField name="success" type="boolean">Whether all moves completed successfully.</ResponseField>
+<ResponseField name="message" type="string | null">`null` on success or an error description.</ResponseField>
+
+```bash
+curl -X POST https://your-instance.com/api/v1/document/move-files \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "files": [
+      {
+        "from": "custom-documents/contract.pdf-fc4beeeb.json",
+        "to": "legal-contracts/contract.pdf-fc4beeeb.json"
+      }
+    ]
+  }'
+```
+
+---
+
+## GET /v1/document/generated-files/\{filename\}
+
+Download a file that was generated by an agent skill (e.g. a PDF, DOCX, XLSX, or PPTX). The `storageFilename` value appears in the `outputs` array of a chat response when an agent produces a file.
+
+### Path Parameters
+
+<ParamField path="filename" type="string" required>
+  The storage filename returned in the chat response `outputs` array (e.g. `pdf-e9e14f28-d6b6-4f49-91a0-dd331517f567.pdf`).
+</ParamField>
+
+### Response
+
+Returns the binary file content with the appropriate `Content-Type` and `Content-Disposition` headers for download.
+
+```bash
+curl -OJ https://your-instance.com/api/v1/document/generated-files/pdf-e9e14f28-d6b6-4f49-91a0-dd331517f567.pdf \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```

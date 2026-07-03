@@ -1,0 +1,98 @@
+---
+title: "AnythingLLM: The All-in-One Private AI Platform"
+sidebarTitle: "Introduction"
+description: "AnythingLLM is a self-hosted AI app for RAG chat, AI agents, and private LLM workflows. Runs locally or in the cloud with 30+ LLM providers."
+---
+
+AnythingLLM is the all-in-one AI application that lets you build a private, fully-featured AI assistant without compromises. Connect your favorite local or cloud LLM, ingest your documents, and start chatting in minutes. Out of the box you get built-in AI agents, multi-user support, a choice of vector databases, and document pipelines — no extra configuration required. Whether you're a solo developer running everything locally or a team deploying to the cloud, AnythingLLM adapts to your workflow and infrastructure.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get AnythingLLM running in under 5 minutes with Docker and send your first chat.
+  </Card>
+  <Card title="Docker Installation" icon="docker" href="/installation/docker">
+    Deploy with a single `docker run` command or Docker Compose for full control.
+  </Card>
+  <Card title="Desktop App" icon="desktop" href="/installation/desktop">
+    Download the native desktop app for Mac, Windows, or Linux — no Docker needed.
+  </Card>
+  <Card title="Bare Metal" icon="server" href="/installation/bare-metal">
+    Run directly on Linux or macOS using Node.js and Yarn without any containers.
+  </Card>
+</CardGroup>
+
+## What Problem Does AnythingLLM Solve?
+
+Most AI chat tools either lock you into a single cloud provider, expose your data to third-party servers, or require complex infrastructure to self-host. AnythingLLM removes every one of those constraints. You choose the LLM — local or remote. You own the data. You control who has access. The platform handles document ingestion, vector storage, agent capabilities, and multi-user permissioning so you don't have to wire anything together yourself.
+
+## Key Features
+
+**Retrieval-Augmented Generation (RAG) Chat**
+Upload PDFs, Word documents, text files, and more directly into workspaces. AnythingLLM chunks, embeds, and indexes them so the LLM can answer questions grounded in your actual content — with source citations shown in every response.
+
+**AI Agents**
+Agents can browse the web, run code, read files, and execute multi-step workflows — all from within a chat interface. AnythingLLM includes a no-code agent flow builder and supports [MCP (Model Context Protocol)](https://docs.anythingllm.com/mcp-compatibility/overview) for connecting external tools.
+
+**Multi-User Support with Permissions**
+The Docker version supports multiple users with per-user access controls. Admins can define who can create workspaces, upload documents, manage API keys, and more — without compromising security or privacy.
+
+**30+ LLM Providers**
+AnythingLLM works with every major language model provider out of the box, including OpenAI, Anthropic, Google Gemini, Ollama, LM Studio, Mistral, Groq, AWS Bedrock, Azure OpenAI, and many more. Switching providers requires no code changes — just update your environment variables or use the settings UI.
+
+**11+ Vector Databases**
+The default vector store is [LanceDB](https://github.com/lancedb/lancedb), which runs embedded with zero setup. You can swap to Pinecone, Chroma, Weaviate, Qdrant, Milvus, Zilliz, Astra DB, or PGVector at any time.
+
+**Embeddable Chat Widget**
+Embed a white-labeled chat widget on any website with a single script tag. The widget connects to your AnythingLLM instance and workspace (Docker version only).
+
+**Desktop App**
+A standalone desktop application for Mac, Windows, and Linux bundles everything together — including local model support — with no Docker or command-line setup required. Ideal for individual users who want a private AI assistant without touching infrastructure.
+
+**Additional Highlights**
+- Dynamic model routing — auto-route chats to the best model based on your rules
+- Scheduled tasks — run recurring prompts or agent workflows on a cron schedule
+- Automatic and user-managed memories — let the LLM remember context across sessions
+- Multi-modal support for both open-source and closed LLMs
+- Full Developer API for custom integrations
+- Telemetry is anonymous and opt-out
+
+## Architecture Overview
+
+AnythingLLM is a monorepo with three runtime services and three supporting modules:
+
+| Service | Technology | Role |
+|---|---|---|
+| `frontend` | Vite + React | Browser UI for chat, workspaces, document management, and settings |
+| `server` | Node.js + Express | API server handling LLM calls, vector DB management, auth, and business logic |
+| `collector` | Node.js + Express | Separate process that parses and processes uploaded documents |
+
+**Storage:** The server uses SQLite (via Prisma) for relational data — users, workspaces, settings, and chat history. Vector embeddings live in whichever vector database you configure (LanceDB by default, stored on disk alongside SQLite).
+
+**Supporting modules:**
+
+- `docker` — Dockerfile, `docker-compose.yml`, and `.env.example` for containerized deployment
+- `embed` — Submodule for the embeddable website chat widget
+- `browser-extension` — Submodule for the Chrome browser extension
+
+In production (Docker or bare metal), the **server** serves the compiled frontend as static files from `server/public`, so only two processes run: `server` and `collector`.
+
+## Supported Providers at a Glance
+
+<CardGroup cols={2}>
+  <Card title="LLM Providers" icon="brain">
+    OpenAI, Anthropic, Google Gemini, Ollama, LM Studio, Mistral, Groq, AWS Bedrock, Azure OpenAI, DeepSeek, Cohere, Together AI, Fireworks AI, Perplexity, OpenRouter, xAI, and more — 30+ total.
+  </Card>
+  <Card title="Vector Databases" icon="database">
+    LanceDB (default, embedded), Pinecone, Chroma, ChromaCloud, Weaviate, Qdrant, Milvus, Zilliz, Astra DB, PGVector — 11+ options.
+  </Card>
+  <Card title="Embedding Models" icon="vector-square">
+    Native built-in embedder (default), OpenAI, Azure OpenAI, Ollama, LM Studio, Cohere, Voyage AI, Mistral, Gemini, LiteLLM, and generic OpenAI-compatible APIs.
+  </Card>
+  <Card title="Audio & TTS" icon="microphone">
+    Built-in Whisper transcription, OpenAI Whisper, native browser TTS, OpenAI TTS, ElevenLabs, Kokoro, PiperTTS, and OpenAI-compatible TTS services.
+  </Card>
+</CardGroup>
+
+## Licensing
+
+AnythingLLM is [MIT licensed](https://github.com/Mintplex-Labs/anything-llm/blob/master/LICENSE) and maintained by [Mintplex Labs](https://github.com/mintplex-labs). A [hosted instance](https://my.mintplexlabs.com/aio-checkout?product=anythingllm) is available if you prefer not to self-host.

@@ -1,0 +1,76 @@
+---
+title: "AI Agents in AnythingLLM: Tools, Skills, and Automation"
+sidebarTitle: "Overview"
+description: "AnythingLLM agents extend your LLM with real-world tools: web browsing, file creation, SQL queries, code execution, calendar access, and custom MCP servers."
+---
+
+AI agents in AnythingLLM transform a standard language model conversation into an action-capable workflow. Rather than simply generating text, an agent can search the web, run SQL queries against live databases, create downloadable files, read your Gmail inbox, and invoke any tool exposed by an external MCP server — all within a single chat turn. Every agent response is driven by the **aibitat** framework, a lightweight internal orchestration layer that routes tool calls, manages conversation state, streams real-time status updates over a WebSocket connection, and safely limits how many tools the agent is allowed to chain together.
+
+## Invoking an Agent
+
+There are two ways to talk to an agent in AnythingLLM:
+
+- **`@agent` mention** — Type `@agent` at the start of any message in a regular workspace chat. The message is handed off to the agent runner; subsequent turns in the same thread remain agent-aware until the conversation ends.
+- **Agent workspace mode** — A workspace can be configured to run in agent mode by default, so every message is automatically processed as an agent request without the `@agent` prefix.
+
+## The aibitat Execution Framework
+
+Under the hood, every agent interaction passes through the **aibitat** engine located in `server/utils/agents/aibitat/`. The engine maintains a conversation graph, selects tools (plugins) to load, executes each tool call through a provider-specific handler, and streams `introspect` messages back to the browser over a live WebSocket connection so you can watch the agent think in real time.
+
+Tool calls are tracked by a `Deduplicator` utility, which prevents the same function from being called with identical arguments in the same turn. MCP tools additionally receive a cooldown window to guard against recursive loops (see [MCP Compatibility](/agents/mcp-compatibility)).
+
+## Intelligent Tool Selection (Skill Reranker)
+
+When many skills and MCP servers are enabled, passing every tool definition to the LLM on every request wastes tokens and can confuse lower-capability models. The **skill reranker** solves this by using the workspace's embedding provider to score each tool description against the user's query, then forwarding only the most relevant subset to the LLM.
+
+<Note>
+  The skill reranker is **enabled by default** and can reduce prompt token usage
+  by up to 80% when you have a large number of tools or MCP servers active.
+</Note>
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `AGENT_SKILL_RERANKER_ENABLED` | `true` | Set to `"false"` to disable reranking and pass all tools every time. |
+| `AGENT_SKILL_RERANKER_TOP_N` | `15` | Maximum number of tools to keep after reranking. |
+
+## Agent Limits and Auto-Approval
+
+Two additional environment variables give you fine-grained control over agent behavior:
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `AGENT_MAX_TOOL_CALLS` | *(no limit)* | Maximum number of sequential tool calls allowed per agent response. Prevents runaway loops on weaker models. |
+| `AGENT_AUTO_APPROVED_SKILLS` | *(none)* | Comma-separated list of skill names whose calls are auto-approved without user confirmation (e.g., `create-pdf-file,create-word-file`). |
+
+## Explore Agents Further
+
+<CardGroup cols={2}>
+  <Card
+    title="Built-In Skills"
+    icon="wrench"
+    href="/agents/built-in-skills"
+  >
+    Web browsing, SQL, file creation, Gmail, Google Calendar, Outlook, charts, and more.
+  </Card>
+  <Card
+    title="Custom Agents"
+    icon="robot"
+    href="/agents/custom-agents"
+  >
+    Build agents with a custom system prompt and a hand-picked set of tools.
+  </Card>
+  <Card
+    title="Agent Flows"
+    icon="diagram-project"
+    href="/agents/agent-flows"
+  >
+    Chain LLM calls, API requests, and web scraping in a no-code visual builder.
+  </Card>
+  <Card
+    title="MCP Compatibility"
+    icon="plug"
+    href="/agents/mcp-compatibility"
+  >
+    Connect any Model Context Protocol server to expose its tools to agents.
+  </Card>
+</CardGroup>

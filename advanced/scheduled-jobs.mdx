@@ -1,0 +1,152 @@
+---
+title: "Scheduled Jobs: Automate Recurring AI Tasks"
+sidebarTitle: "Scheduled Jobs"
+description: "Run prompts or agent workflows on a cron schedule with AnythingLLM Scheduled Jobs. Supports concurrent execution, timeouts, and full agent capabilities."
+---
+
+Scheduled Jobs let you automate any prompt or agent workflow to run on a repeating cron schedule—without any manual intervention. You write the prompt once, pick a schedule, and AnythingLLM handles the rest: it spawns an isolated agent worker for each execution, logs every run with status and output, and sends you a push notification when the job completes. Whether you need a daily market summary, an automated web research digest, or a weekly report generated from your embedded documents, Scheduled Jobs handle it end-to-end.
+
+<Note>
+  Scheduled Jobs use the full AnythingLLM agent runtime, including all configured agent skills: RAG memory, web browsing, web scraping, SQL querying, file system access, Gmail, Google Calendar, Outlook, MCP servers, custom imported plugins, and agent flows. Each job can be configured with its own independent toolset.
+</Note>
+
+## Creating a Scheduled Job
+
+<Steps>
+  <Step title="Open Scheduled Jobs">
+    Navigate to **System Settings → Scheduled Jobs** and click **New Scheduled Job**.
+  </Step>
+  <Step title="Name your job and write the prompt">
+    Give the job a descriptive **name**. Then write the **prompt** exactly as you would type it into an agent chat—be specific about what you want the agent to produce. The agent will follow the prompt faithfully on every scheduled execution.
+  </Step>
+  <Step title="Set the cron schedule">
+    Enter a standard 5-field cron expression for when the job should run. All cron expressions are interpreted in **UTC**. The UI will show you the next computed run time after you enter a valid expression.
+
+    ```
+    ┌─────────── minute (0-59)
+    │ ┌─────────── hour (0-23)
+    │ │ ┌─────────── day of month (1-31)
+    │ │ │ ┌─────────── month (1-12)
+    │ │ │ │ ┌─────────── day of week (0-7, 0 and 7 = Sunday)
+    │ │ │ │ │
+    * * * * *
+    ```
+  </Step>
+  <Step title="Select agent tools (optional)">
+    Choose which agent skills the job is allowed to use. Each scheduled job has its own independent tool configuration—you can give one job access to web browsing while another only uses RAG memory. Leave the list empty to use no tools (plain LLM completion only).
+  </Step>
+  <Step title="Enable the job">
+    Toggle the job to **Enabled** and save. The job will run at the next scheduled time according to your cron expression.
+  </Step>
+</Steps>
+
+## Cron Schedule Examples
+
+<Tabs>
+  <Tab title="Common Schedules">
+    | Expression | Meaning |
+    |---|---|
+    | `0 9 * * *` | Every day at 9:00 AM UTC |
+    | `0 9 * * 1` | Every Monday at 9:00 AM UTC |
+    | `0 8,17 * * 1-5` | Weekdays at 8:00 AM and 5:00 PM UTC |
+    | `0 0 1 * *` | First day of every month at midnight UTC |
+    | `0 */4 * * *` | Every 4 hours |
+    | `30 6 * * 1-5` | Weekdays at 6:30 AM UTC |
+    | `0 18 * * 5` | Every Friday at 6:00 PM UTC |
+  </Tab>
+  <Tab title="Use Case Examples">
+    | Use Case | Cron | Prompt Example |
+    |---|---|---|
+    | Daily news digest | `0 7 * * *` | `"Search the web for the top 5 AI news stories from the last 24 hours and summarize each in 2 sentences."` |
+    | Weekly report | `0 9 * * 1` | `"Review all documents in this workspace uploaded in the last 7 days and write an executive summary."` |
+    | Hourly monitoring | `0 * * * *` | `"Check the status page at https://example.com and report any incidents or degraded services."` |
+    | Monthly cleanup | `0 0 1 * *` | `"List all workspace documents that have not been referenced in any chat in the last 30 days."` |
+  </Tab>
+</Tabs>
+
+<Tip>
+  The UI converts your local time to UTC automatically when displaying next-run times. When writing your cron expression, enter it in UTC. For example, `0 9 * * *` fires at 9:00 AM UTC—which is 5:00 AM Eastern or 2:00 AM Pacific.
+</Tip>
+
+## Job Runs and Status
+
+Every time a scheduled job fires, a **job run** record is created and tracked through its full lifecycle:
+
+| Status | Meaning |
+|---|---|
+| `queued` | The run has been claimed by the queue; the worker process has not started yet |
+| `running` | The agent worker is actively executing the prompt |
+| `completed` | The job finished successfully; result text and tool call trace are stored |
+| `failed` | The job encountered an error before completing |
+| `timed_out` | The job exceeded `SCHEDULED_JOB_TIMEOUT_MS` and was terminated |
+
+You can view the full run history for any job—including the agent's complete response text, tool calls made, and timing metrics—directly from the Scheduled Jobs UI.
+
+### Continuing a Run in a Workspace Thread
+
+From any completed run, you can click **"Continue in Thread"** to open the job's response as a new chat thread in the dedicated `scheduled-jobs` workspace. This lets you ask follow-up questions, dig deeper into the results, or use the output as a starting point for further research.
+
+### Handling Orphaned Runs
+
+If the AnythingLLM server restarts while a job is `queued` or `running`, those in-flight runs are automatically marked as `failed` with the message `"Server restarted during execution"` on the next startup. No run is ever left stuck in a non-terminal state.
+
+## Environment Variables
+
+You can tune scheduled job behavior with these variables in your `.env` file or Docker environment:
+
+<Accordion title="SCHEDULED_JOB_MAX_CONCURRENT">
+  ```bash
+  SCHEDULED_JOB_MAX_CONCURRENT=1
+  ```
+  Controls the maximum number of scheduled job workers that can execute **simultaneously**. Defaults to `1` (sequential execution). Increase this value if you have many jobs scheduled close together and your LLM provider can handle the parallel load.
+
+  The concurrency limit is enforced by a `p-queue` worker pool inside the `BackgroundWorkers` service—jobs that exceed the limit are queued and executed as slots become available.
+</Accordion>
+
+<Accordion title="SCHEDULED_JOB_TIMEOUT_MS">
+  ```bash
+  SCHEDULED_JOB_TIMEOUT_MS=300000
+  ```
+  Maximum time in milliseconds that a single job execution can run before being forcibly terminated. Defaults to `300000` (5 minutes). If the agent does not finish within this window, the run is marked `timed_out`.
+
+  Increase this value for jobs that perform long web scraping chains or process large documents. Note that a timed-out job may still have consumed LLM tokens up to the point it was terminated.
+</Accordion>
+
+<Warning>
+  Raising `SCHEDULED_JOB_MAX_CONCURRENT` above `1` means multiple jobs may fire LLM API calls simultaneously. If you are using a cloud provider with strict rate limits (e.g., OpenAI Tier 1), concurrent jobs can quickly exhaust your requests-per-minute quota and cause failures. Start with the default of `1` and only increase it when you have confirmed sufficient API rate-limit headroom.
+</Warning>
+
+## Agent Tools Available to Scheduled Jobs
+
+Each scheduled job can independently select from the full set of available agent skills. Unlike workspace-level agent settings, the tool selection is per-job—you can give a research job access to web browsing without enabling it for a document summary job.
+
+<Accordion title="Available tool categories">
+  - **Agent Skills**: RAG Memory, Document Summarizer, Web Scraping, Create Charts, Web Browsing, SQL Agent
+  - **File System**: Read, write, and list files in the server's storage directory
+  - **Create Files**: Generate PDFs, Word documents, Excel spreadsheets, and more
+  - **Gmail**: Read inbox, send emails, manage labels (requires Gmail OAuth setup)
+  - **Google Calendar**: Create, read, and update calendar events (requires Google Calendar OAuth setup)
+  - **Outlook**: Read mail, send emails, manage calendar (requires Outlook OAuth setup)
+  - **Custom Skills**: Any imported plugin packages you've added to your instance
+  - **Agent Flows**: Any saved agent flows you've built in the Flow Builder
+  - **MCP Servers**: Any connected Model Context Protocol servers and their exposed tools
+</Accordion>
+
+When a tool requires setup (for example, SQL Agent with no connected databases, or Gmail with no OAuth configured), it is shown as `requiresSetup: true` in the tool picker and will fail gracefully if selected without proper configuration.
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Daily News Digest" icon="newspaper">
+    Scrape a set of news sources or RSS feeds every morning and produce a structured summary dropped into a workspace thread for your team.
+  </Card>
+  <Card title="Automated Research" icon="magnifying-glass">
+    Run competitive analysis jobs that search the web for mentions of your product, competitors, or industry keywords and compile a weekly brief.
+  </Card>
+  <Card title="Document Q&A Rollups" icon="file-magnifying-glass">
+    Query your embedded document corpus on a schedule to surface newly relevant information—ideal for compliance monitoring or knowledge-base auditing.
+  </Card>
+  <Card title="Scheduled Report Generation" icon="chart-bar">
+    Query connected SQL databases and generate formatted Excel or PDF reports on a monthly cadence, fully automated without any human trigger.
+  </Card>
+</CardGroup>

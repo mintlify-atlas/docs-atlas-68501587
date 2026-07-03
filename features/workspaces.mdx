@@ -1,0 +1,161 @@
+---
+title: "Workspaces: Isolated Chat Environments in AnythingLLM"
+sidebarTitle: "Workspaces"
+description: "Workspaces are isolated RAG environments in AnythingLLM. Each has its own documents, chat history, LLM settings, system prompt, and user permissions."
+---
+
+Workspaces are the primary organizational unit inside AnythingLLM. Every workspace is a fully isolated environment: it has its own set of uploaded documents, its own chat history, its own system prompt, and optionally its own LLM model override. When you chat inside a workspace, the responses are grounded only in the documents that belong to that workspace — nothing leaks between workspaces. This makes it easy to keep a "Legal Contracts" workspace entirely separate from a "Customer Support" workspace, even when both live on the same AnythingLLM instance.
+
+## What Makes Up a Workspace
+
+Each workspace stores the following configuration alongside its documents:
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `name` | Human-readable label shown in the sidebar | `"My Workspace"` |
+| `slug` | URL-safe identifier used in API calls | Auto-generated from name |
+| `openAiPrompt` | Custom system prompt for this workspace | Global default prompt |
+| `openAiTemp` | LLM temperature (0 – 2) | `null` (uses provider default) |
+| `openAiHistory` | Number of prior exchanges kept in context | `20` |
+| `similarityThreshold` | Minimum cosine similarity for a chunk to be retrieved | `0.25` |
+| `topN` | Maximum number of document chunks injected per turn | `4` |
+| `chatMode` | Retrieval strategy — `chat`, `query`, or `automatic` | `"automatic"` |
+| `chatProvider` | Override the global LLM provider for this workspace | `null` (inherits global) |
+| `chatModel` | Override the global LLM model for this workspace | `null` (inherits global) |
+| `vectorSearchMode` | Vector search strategy — `default` or `rerank` | `"default"` |
+| `queryRefusalResponse` | Custom message when no sources are found in `query` mode | `null` |
+
+## Chat Modes
+
+AnythingLLM exposes three chat modes that control how the LLM uses retrieved documents:
+
+<AccordionGroup>
+  <Accordion title="automatic (default)">
+    The model decides whether to retrieve documents or answer from general knowledge. When a provider supports native tool-calling, agents can be invoked with `@agent` without an explicit mode switch. This is the recommended mode for most workspaces.
+  </Accordion>
+  <Accordion title="query">
+    Strict RAG mode. The LLM will **only** answer if relevant source chunks are found in the vector database. If no chunks meet the similarity threshold, the workspace returns a refusal message (configurable via `queryRefusalResponse`). No chat history is passed to the model, so every turn is stateless.
+  </Accordion>
+  <Accordion title="chat">
+    The LLM uses its general knowledge combined with any matching document chunks. Rolling chat history is included so the model can follow multi-turn conversations. Use this mode when you want conversational continuity alongside document grounding.
+  </Accordion>
+</AccordionGroup>
+
+## Workspace Threads
+
+Threads let you branch a workspace conversation without creating a whole new workspace. A thread inherits all of the parent workspace's documents, settings, and permissions, but maintains its own isolated chat history. This is useful when you want to explore a topic in a different direction without polluting the main workspace history.
+
+<Note>
+  Threads are created from the chat UI by clicking **New Thread** in the workspace sidebar. Each thread has its own slug that can be targeted through the API.
+</Note>
+
+## Document Pinning
+
+By default, documents are retrieved semantically — only the chunks most similar to the current user message are injected into the context window. **Pinned documents** skip this retrieval step entirely: every chunk from a pinned document is always included in the context, regardless of the query.
+
+Use pinning when a document must always be present — for example, a style guide that should inform every response, or a short reference document that is small enough to fit within the context window without issue.
+
+<Warning>
+  Pinning large documents can fill the entire context window and leave no room for retrieved chunks from other documents or the conversation history. Pin sparingly.
+</Warning>
+
+## Per-Workspace LLM Override
+
+By default, workspaces inherit the globally configured LLM provider and model. You can override both `chatProvider` and `chatModel` at the workspace level to mix providers on the same instance — for example, running a fast model for a high-traffic support workspace while using a more capable model in a research workspace.
+
+The hierarchy is:
+
+```
+Workspace chatProvider / chatModel
+    ↓ (if null)
+Global LLM_PROVIDER / LLM_MODEL_PREF
+```
+
+Agent-specific overrides (`agentProvider` / `agentModel`) follow the same pattern but apply only when an agent tool is invoked.
+
+## Creating and Managing Workspaces
+
+<Tabs>
+  <Tab title="UI">
+    <Steps>
+      <Step title="Open the workspace selector">
+        Click the **＋ New Workspace** button in the left sidebar.
+      </Step>
+      <Step title="Name your workspace">
+        Enter a name. AnythingLLM will automatically generate a slug from the name (e.g., `my-workspace`).
+      </Step>
+      <Step title="Configure settings">
+        Open **Workspace Settings** (the gear icon) to adjust the system prompt, chat mode, temperature, similarity threshold, and LLM overrides.
+      </Step>
+      <Step title="Add documents">
+        Upload files or link URLs via the **Document Manager** inside the workspace. Uploaded documents are chunked, embedded, and stored in the vector database automatically.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="API">
+    All workspace management is available through the REST API. The workspace `slug` is the identifier used in every API path.
+
+    **Create a workspace**
+
+    ```bash
+    curl -X POST http://localhost:3001/api/v1/workspace/new \
+      -H "Authorization: Bearer <token>" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "Legal Contracts"}'
+    ```
+
+    **Update workspace settings**
+
+    ```bash
+    curl -X POST http://localhost:3001/api/v1/workspace/legal-contracts/update \
+      -H "Authorization: Bearer <token>" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "openAiPrompt": "You are a legal assistant. Only cite documents you have read.",
+        "chatMode": "query",
+        "similarityThreshold": 0.4,
+        "topN": 6
+      }'
+    ```
+
+    **Delete a workspace**
+
+    ```bash
+    curl -X DELETE http://localhost:3001/api/v1/workspace/legal-contracts \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Tab>
+</Tabs>
+
+## Workspace Slug
+
+The slug is a lowercase, URL-safe version of the workspace name. It is generated automatically when the workspace is created and cannot be changed afterward. If two workspaces share the same name, a random 8-digit suffix is appended to guarantee uniqueness.
+
+The slug appears in:
+- All REST API paths: `/api/v1/workspace/{slug}/...`
+- The browser URL when the workspace is open
+- Vector database namespace identifiers
+
+<Tip>
+  Keep workspace names short and descriptive. A name like `"Customer Support Q2 2025"` generates the slug `customer-support-q2-2025`, which is easy to read in API calls and logs.
+</Tip>
+
+## Settings Hierarchy
+
+AnythingLLM uses a layered settings model. Workspace-level settings always win over global defaults, but global settings apply whenever a workspace field is left as `null`.
+
+```
+┌─────────────────────────────┐
+│      Workspace Settings     │  ← checked first
+│  chatProvider, chatModel,   │
+│  openAiPrompt, topN, etc.   │
+└──────────────┬──────────────┘
+               │ null → fall through
+┌──────────────▼──────────────┐
+│       Global Settings       │  ← fallback
+│  LLM_PROVIDER, LLM_MODEL,   │
+│  default system prompt, etc.│
+└─────────────────────────────┘
+```
+
+This means you can change the global provider at any time and every workspace that hasn't pinned its own model will automatically pick up the change.

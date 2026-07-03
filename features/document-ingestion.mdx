@@ -1,0 +1,158 @@
+---
+title: "Document Ingestion and RAG in AnythingLLM"
+sidebarTitle: "Document Ingestion"
+description: "Upload PDFs, Word docs, spreadsheets, URLs, and more to AnythingLLM. Documents are chunked, embedded, and indexed for semantic search in workspace chats."
+---
+
+Document ingestion is how you teach AnythingLLM what to know. When you upload a file or submit a URL, a dedicated collector service parses the raw content, splits it into overlapping text chunks, generates vector embeddings for each chunk, and stores those embeddings in the configured vector database. During a chat, the user's query is embedded using the same model, and the closest matching chunks are injected into the LLM's context window alongside the conversation — this is Retrieval-Augmented Generation (RAG) in action.
+
+## Supported File Types
+
+AnythingLLM's collector service accepts a wide range of formats out of the box:
+
+<CardGroup cols={2}>
+  <Card title="Text & Markup" icon="file-lines">
+    `.txt`, `.md`, `.org`, `.adoc`, `.rst`, `.html`
+  </Card>
+  <Card title="Office Documents" icon="file-word">
+    `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.odt`, `.odp`, `.epub`, `.mbox`
+  </Card>
+  <Card title="Data Files" icon="file-csv">
+    `.csv`, `.json`
+  </Card>
+  <Card title="Audio & Video" icon="file-audio">
+    `.mp3`, `.wav`, `.mp4`, `.mpeg`, `.ogg`, `.oga`, `.opus`, `.m4a`, `.webm`
+  </Card>
+  <Card title="Images" icon="file-image">
+    `.png`, `.jpg`, `.jpeg`, `.webp` — OCR is applied automatically
+  </Card>
+  <Card title="Links" icon="link">
+    Web URLs, YouTube video URLs (transcript extraction)
+  </Card>
+</CardGroup>
+
+<Note>
+  Audio and video files are transcribed to text using the configured Speech-to-Text provider before chunking. The resulting transcript is what gets embedded and retrieved during chats.
+</Note>
+
+## The Ingestion Pipeline
+
+Every document — whether it is a local file upload or a scraped URL — passes through the same pipeline:
+
+<Steps>
+  <Step title="Upload">
+    The file is received by the AnythingLLM server and forwarded to the **collector service** (a separate process that handles all parsing). Files can be uploaded via the Document Manager in the UI or via the REST API.
+  </Step>
+  <Step title="Parse & Convert">
+    The collector identifies the file type and routes it to the appropriate converter:
+
+    - PDFs → text extraction; falls back to OCR if no text layer is found
+    - DOCX, PPTX, ODT, ODP → LibreOffice-compatible MIME parser
+    - XLSX → spreadsheet-to-text converter
+    - Images (PNG, JPG, WEBP) → Tesseract OCR
+    - Audio / video → Speech-to-Text transcription
+    - URLs → web scraper or YouTube transcript extractor
+  </Step>
+  <Step title="Chunk">
+    Extracted text is split into overlapping chunks. Chunk size and overlap are configured globally. Smaller chunks improve retrieval precision; larger chunks preserve more surrounding context per result.
+  </Step>
+  <Step title="Embed">
+    Each chunk is sent to the configured embedding model (OpenAI `text-embedding-3-small`, a local model via Ollama, or another supported provider) and converted to a high-dimensional vector.
+  </Step>
+  <Step title="Store in Vector DB">
+    Vectors and their associated metadata (source filename, page number, chunk index, etc.) are written to the vector database — LanceDB by default, or an external provider like Pinecone, Chroma, Weaviate, Qdrant, or Milvus.
+  </Step>
+  <Step title="Register in Workspace">
+    A record is created in the `workspace_documents` table linking the document to the workspace so it appears in the Document Manager.
+  </Step>
+</Steps>
+
+## OCR Support
+
+For image-based PDFs and standalone image files (PNG, JPG, WEBP), AnythingLLM uses [Tesseract.js](https://github.com/naptha/tesseract.js) to extract text automatically.
+
+The OCR language defaults to English (`eng`). To recognize other languages, set the `TARGET_OCR_LANG` environment variable to a comma-separated list of [Tesseract language codes](https://github.com/tesseract-ocr/tessdata):
+
+```bash
+# English + German + French
+TARGET_OCR_LANG=eng,deu,fra
+```
+
+OCR model data is cached on first use under `storage/models/tesseract/` so subsequent runs are faster.
+
+## Document Manager
+
+The Document Manager is the central hub for all uploaded content. From there you can:
+
+- **Browse** all documents organized in folders
+- **Move** documents between folders
+- **Add documents to a workspace** by selecting them and clicking _Save & Embed_
+- **Remove documents from a workspace** without deleting the underlying file
+- **Pin** documents so they are always included in context (bypassing the similarity search)
+- **Mark documents as watched** so they are automatically re-embedded when their source changes
+
+### Watched / Synced Documents
+
+Set a document's `watched` flag to `true` and AnythingLLM will re-run the ingestion pipeline against the original source on a regular schedule (every 1 hour by default). This is useful for web pages, RSS feeds, or internal wikis that change frequently.
+
+## Pinned Documents
+
+Pinned documents bypass the similarity threshold entirely. Every chunk from a pinned document is injected into the context window on every turn. This is ideal for short reference documents that must always be present — a company FAQ, a product spec sheet, or a glossary.
+
+<Warning>
+  Pinning large documents can consume the entire context window. Reserve pinning for documents that are small enough to fit comfortably alongside the conversation history and retrieved chunks from other sources.
+</Warning>
+
+## Citations in Chat Responses
+
+When a response is grounded in retrieved document chunks, AnythingLLM appends a **Sources** section to the response listing the document name, page number, and the chunk text used. Users can expand each source to read the exact excerpt the model referenced.
+
+Metadata stored with each chunk — title, page number, and the original `chunkSource` URI — is surfaced as part of the citation display.
+
+## API Reference
+
+### Upload a file
+
+```bash
+POST /api/v1/document/upload
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+
+# Fields:
+#   file          - The file to upload (required)
+#   addToWorkspaces - Comma-separated workspace slugs to embed into immediately
+```
+
+**Example**
+
+```bash
+curl -X POST http://localhost:3001/api/v1/document/upload \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@/path/to/report.pdf" \
+  -F "addToWorkspaces=legal-contracts,research"
+```
+
+### Upload a URL or link
+
+```bash
+POST /api/v1/document/upload-link
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "link": "https://example.com/article"
+}
+```
+
+**Example — YouTube transcript**
+
+```bash
+curl -X POST http://localhost:3001/api/v1/document/upload-link \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"link": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}'
+```
+
+<Note>
+  When ingesting large document sets (hundreds of PDFs or very long documents), consider tuning your chunk size and overlap settings before uploading. Smaller chunks produce more precise retrieval but require more embedding API calls and more vector storage. A chunk size of 1,000 tokens with 200-token overlap is a reasonable starting point for most use cases.
+</Note>

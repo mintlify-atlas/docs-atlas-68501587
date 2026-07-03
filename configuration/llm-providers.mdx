@@ -1,0 +1,449 @@
+---
+title: "Configure LLM Providers in AnythingLLM"
+sidebarTitle: "LLM Providers"
+description: "Connect AnythingLLM to 30+ LLM providers including OpenAI, Anthropic, Ollama, Gemini, Mistral, Groq, and AWS Bedrock. Set via UI or environment variables."
+---
+
+AnythingLLM ships with connectors for more than 30 language model providers — from fully local runtimes such as Ollama and LM Studio to managed cloud APIs like OpenAI, Anthropic, and AWS Bedrock. You can switch providers at any time without re-importing documents; only new chat completions will use the updated provider. The active provider is controlled by the `LLM_PROVIDER` environment variable (or selected in the setup wizard), and each provider then reads its own set of keys and preferences from the environment.
+
+## Two Ways to Configure
+
+<Tabs>
+  <Tab title="Setup Wizard (UI)">
+    When you first launch AnythingLLM, the setup wizard walks you through selecting a provider and entering credentials directly in the browser. You can return to these settings at any time via **Settings → LLM Preference** in the sidebar.
+
+    The UI writes your choices to the database, so no `.env` edits are required for basic provider selection when using the wizard.
+  </Tab>
+  <Tab title="Environment Variables">
+    Set `LLM_PROVIDER` to your chosen provider's identifier, then add the provider-specific keys alongside it in `docker/.env`. This approach is recommended for production deployments, CI/CD pipelines, or any situation where you want configuration to be reproducible and version-controlled.
+
+    ```bash
+    LLM_PROVIDER='openai'
+    OPEN_AI_KEY=sk-...
+    OPEN_MODEL_PREF='gpt-4o'
+    ```
+
+    Restart the container after editing the file.
+  </Tab>
+</Tabs>
+
+---
+
+## Local / Self-Hosted Providers
+
+These providers run entirely on your own hardware — no data is sent to external services.
+
+<AccordionGroup>
+  <Accordion title="Ollama">
+    Ollama is the most popular self-hosted LLM runtime and the recommended starting point for local deployments.
+
+    ```bash
+    LLM_PROVIDER='ollama'
+    OLLAMA_BASE_PATH='http://host.docker.internal:11434'
+    OLLAMA_MODEL_PREF='llama3'
+    OLLAMA_MODEL_TOKEN_LIMIT=4096
+    # Optional — only if your Ollama server requires a Bearer token:
+    OLLAMA_AUTH_TOKEN='your-ollama-auth-token-here'
+    # Optional — max response timeout in ms (default 5 min):
+    # OLLAMA_RESPONSE_TIMEOUT=7200000
+    ```
+
+    When running AnythingLLM inside Docker, use `host.docker.internal` to reach Ollama on the host machine. On Linux you may need `--add-host=host.docker.internal:host-gateway` in your Docker run command.
+  </Accordion>
+
+  <Accordion title="LM Studio">
+    LM Studio exposes an OpenAI-compatible local API server.
+
+    ```bash
+    LLM_PROVIDER='lmstudio'
+    LMSTUDIO_BASE_PATH='http://your-server:1234/v1'
+    LMSTUDIO_MODEL_PREF='Loaded from Chat UI'
+    LMSTUDIO_MODEL_TOKEN_LIMIT=4096
+    # Optional auth token if LM Studio is configured with one:
+    LMSTUDIO_AUTH_TOKEN='your-lmstudio-auth-token-here'
+    ```
+  </Accordion>
+
+  <Accordion title="LocalAI">
+    LocalAI is an open-source, self-hosted inference server compatible with the OpenAI API.
+
+    ```bash
+    LLM_PROVIDER='localai'
+    LOCAL_AI_BASE_PATH='http://host.docker.internal:8080/v1'
+    LOCAL_AI_MODEL_PREF='luna-ai-llama2'
+    LOCAL_AI_MODEL_TOKEN_LIMIT=4096
+    LOCAL_AI_API_KEY="sk-123abc"
+    ```
+  </Accordion>
+
+  <Accordion title="KoboldCPP">
+    KoboldCPP is a single-file LLM runtime popular in the creative writing community.
+
+    ```bash
+    LLM_PROVIDER='koboldcpp'
+    KOBOLD_CPP_BASE_PATH='http://127.0.0.1:5000/v1'
+    KOBOLD_CPP_MODEL_PREF='koboldcpp/codellama-7b-instruct.Q4_K_S'
+    KOBOLD_CPP_MODEL_TOKEN_LIMIT=4096
+    ```
+  </Accordion>
+
+  <Accordion title="Text Generation Web UI (llama.cpp / oobabooga)">
+    Supports any model loaded in the popular oobabooga text-generation-webui.
+
+    ```bash
+    LLM_PROVIDER='textgenwebui'
+    TEXT_GEN_WEB_UI_BASE_PATH='http://127.0.0.1:5000/v1'
+    TEXT_GEN_WEB_UI_TOKEN_LIMIT=4096
+    TEXT_GEN_WEB_UI_API_KEY='sk-123abc'
+    ```
+  </Accordion>
+
+  <Accordion title="NVIDIA NIM">
+    NVIDIA NIM exposes locally deployed NVIDIA-accelerated models through an OpenAI-compatible endpoint.
+
+    ```bash
+    LLM_PROVIDER='nvidia-nim'
+    NVIDIA_NIM_LLM_BASE_PATH='http://127.0.0.1:8000'
+    NVIDIA_NIM_LLM_MODEL_PREF='meta/llama-3.2-3b-instruct'
+    ```
+  </Accordion>
+
+  <Accordion title="Docker Model Runner">
+    Docker Model Runner runs models directly inside the Docker engine on supported hardware.
+
+    ```bash
+    LLM_PROVIDER='docker-model-runner'
+    DOCKER_MODEL_RUNNER_BASE_PATH='http://127.0.0.1:12434'
+    DOCKER_MODEL_RUNNER_LLM_MODEL_PREF='phi-3.5-mini'
+    DOCKER_MODEL_RUNNER_LLM_MODEL_TOKEN_LIMIT=4096
+    ```
+  </Accordion>
+
+  <Accordion title="Lemonade">
+    Lemonade is an AMD-optimized local inference server (part of the AMD ROCm ecosystem).
+
+    ```bash
+    LLM_PROVIDER='lemonade'
+    LEMONADE_LLM_API_KEY='your-lemonade-api-key'
+    LEMONADE_LLM_MODEL_PREF='Llama-3.2-3B-Instruct'
+    ```
+  </Accordion>
+
+  <Accordion title="Foundry (Microsoft Foundry Local)">
+    Microsoft Foundry Local is a local inference runtime for Windows with hardware acceleration.
+
+    ```bash
+    LLM_PROVIDER='foundry'
+    FOUNDRY_BASE_PATH='http://127.0.0.1:55776'
+    FOUNDRY_MODEL_PREF='phi-3.5-mini'
+    FOUNDRY_MODEL_TOKEN_LIMIT=4096
+    ```
+  </Accordion>
+
+  <Accordion title="PrivateMode">
+    PrivateMode is a privacy-focused local inference server.
+
+    ```bash
+    LLM_PROVIDER='privatemode'
+    PRIVATEMODE_LLM_BASE_PATH='http://127.0.0.1:8080'
+    PRIVATEMODE_LLM_MODEL_PREF='gemma-3-27b'
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Cloud / Commercial Providers
+
+<Tabs>
+  <Tab title="OpenAI">
+    ```bash
+    LLM_PROVIDER='openai'
+    OPEN_AI_KEY=sk-...
+    OPEN_MODEL_PREF='gpt-4o'
+    ```
+
+    The `OPEN_MODEL_PREF` can be any model ID returned by the OpenAI models API. Popular choices include `gpt-4o`, `gpt-4o-mini`, `o1`, and `o3-mini`.
+  </Tab>
+  <Tab title="Anthropic">
+    ```bash
+    LLM_PROVIDER='anthropic'
+    ANTHROPIC_API_KEY=sk-ant-...
+    ANTHROPIC_MODEL_PREF='claude-sonnet-4-6'
+    # Optional — enable prompt caching to reduce costs:
+    # ANTHROPIC_CACHE_CONTROL="5m"
+    ```
+
+    `ANTHROPIC_CACHE_CONTROL` accepts `5m` (5-minute cache) or `1h` (1-hour cache). Prompt caching significantly reduces token costs on repeated system-prompt content.
+  </Tab>
+  <Tab title="Google Gemini">
+    ```bash
+    LLM_PROVIDER='gemini'
+    GEMINI_API_KEY=...
+    GEMINI_LLM_MODEL_PREF='gemini-2.0-flash-lite'
+    ```
+  </Tab>
+</Tabs>
+
+<AccordionGroup>
+  <Accordion title="Azure OpenAI">
+    ```bash
+    LLM_PROVIDER='azure'
+    AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+    AZURE_OPENAI_KEY=...
+    AZURE_OPENAI_MODEL_PREF='my-gpt35-deployment'
+    # For Azure-based embeddings:
+    # EMBEDDING_MODEL_PREF='embedder-model'
+    ```
+
+    `AZURE_OPENAI_MODEL_PREF` is the **deployment name** you created in Azure OpenAI Studio, not the base model name.
+  </Accordion>
+
+  <Accordion title="AWS Bedrock">
+    ```bash
+    LLM_PROVIDER='bedrock'
+    AWS_BEDROCK_LLM_REGION=us-west-2
+    AWS_BEDROCK_API_KEY="..."
+    AWS_BEDROCK_LLM_MODEL_PREFERENCE=global.anthropic.claude-haiku-4-5-20251001-v1:0
+    AWS_BEDROCK_LLM_MODEL_TOKEN_LIMIT='128000'
+    # Disable streaming if your network or model does not support it:
+    # AWS_BEDROCK_STREAMING_DISABLED=1
+    ```
+  </Accordion>
+
+  <Accordion title="Mistral">
+    ```bash
+    LLM_PROVIDER='mistral'
+    MISTRAL_API_KEY='...'
+    MISTRAL_MODEL_PREF='mistral-tiny'
+    ```
+  </Accordion>
+
+  <Accordion title="Groq">
+    ```bash
+    LLM_PROVIDER='groq'
+    GROQ_API_KEY=gsk_...
+    GROQ_MODEL_PREF=llama3-8b-8192
+    ```
+  </Accordion>
+
+  <Accordion title="Cohere">
+    ```bash
+    LLM_PROVIDER='cohere'
+    COHERE_API_KEY=...
+    COHERE_MODEL_PREF='command-r'
+    ```
+  </Accordion>
+
+  <Accordion title="Perplexity">
+    ```bash
+    LLM_PROVIDER='perplexity'
+    PERPLEXITY_API_KEY='...'
+    PERPLEXITY_MODEL_PREF='codellama-34b-instruct'
+    ```
+  </Accordion>
+
+  <Accordion title="Together AI">
+    ```bash
+    LLM_PROVIDER='togetherai'
+    TOGETHER_AI_API_KEY='...'
+    TOGETHER_AI_MODEL_PREF='mistralai/Mixtral-8x7B-Instruct-v0.1'
+    ```
+  </Accordion>
+
+  <Accordion title="Fireworks AI">
+    ```bash
+    LLM_PROVIDER='fireworksai'
+    FIREWORKS_AI_LLM_API_KEY='...'
+    FIREWORKS_AI_LLM_MODEL_PREF='accounts/fireworks/models/llama-v3p1-8b-instruct'
+    ```
+  </Accordion>
+
+  <Accordion title="OpenRouter">
+    ```bash
+    LLM_PROVIDER='openrouter'
+    OPENROUTER_API_KEY='...'
+    OPENROUTER_MODEL_PREF='openrouter/auto'
+    ```
+  </Accordion>
+
+  <Accordion title="DeepSeek">
+    ```bash
+    LLM_PROVIDER='deepseek'
+    DEEPSEEK_API_KEY='...'
+    DEEPSEEK_MODEL_PREF='deepseek-chat'
+    ```
+  </Accordion>
+
+  <Accordion title="xAI (Grok)">
+    ```bash
+    LLM_PROVIDER='xai'
+    XAI_LLM_API_KEY='xai-...'
+    XAI_LLM_MODEL_PREF='grok-beta'
+    ```
+  </Accordion>
+
+  <Accordion title="Novita">
+    ```bash
+    LLM_PROVIDER='novita'
+    NOVITA_LLM_API_KEY='...'
+    NOVITA_LLM_MODEL_PREF='deepseek/deepseek-r1'
+    ```
+  </Accordion>
+
+  <Accordion title="SambaNova">
+    ```bash
+    LLM_PROVIDER='sambanova'
+    SAMBANOVA_LLM_API_KEY='...'
+    SAMBANOVA_LLM_MODEL_PREF='gpt-oss-120b'
+    ```
+  </Accordion>
+
+  <Accordion title="Cerebras">
+    ```bash
+    LLM_PROVIDER='cerebras'
+    CEREBRAS_API_KEY='...'
+    CEREBRAS_MODEL_PREF='gpt-oss-120b'
+    ```
+  </Accordion>
+
+  <Accordion title="MiniMax">
+    ```bash
+    LLM_PROVIDER='minimax'
+    MINIMAX_API_KEY='sk-cp-...'
+    MINIMAX_MODEL_PREF='MiniMax-M2.7'
+    ```
+  </Accordion>
+
+  <Accordion title="Moonshot AI">
+    ```bash
+    LLM_PROVIDER='moonshotai'
+    MOONSHOT_AI_API_KEY='...'
+    MOONSHOT_AI_MODEL_PREF='moonshot-v1-32k'
+    ```
+  </Accordion>
+
+  <Accordion title="Gitee AI">
+    ```bash
+    LLM_PROVIDER='giteeai'
+    GITEE_AI_API_KEY=...
+    GITEE_AI_MODEL_PREF=...
+    GITEE_AI_MODEL_TOKEN_LIMIT=...
+    ```
+  </Accordion>
+
+  <Accordion title="ZAI (Zhipu AI)">
+    ```bash
+    LLM_PROVIDER='zai'
+    ZAI_API_KEY="..."
+    ZAI_MODEL_PREF="glm-4.5"
+    ```
+  </Accordion>
+
+  <Accordion title="PPIO">
+    ```bash
+    LLM_PROVIDER='ppio'
+    PPIO_API_KEY='...'
+    PPIO_MODEL_PREF=deepseek/deepseek-v3/community
+    ```
+  </Accordion>
+
+  <Accordion title="APIPie">
+    ```bash
+    LLM_PROVIDER='apipie'
+    APIPIE_LLM_API_KEY='sk-...'
+    APIPIE_LLM_MODEL_PREF='openrouter/llama-3.1-8b-instruct'
+    ```
+  </Accordion>
+
+  <Accordion title="CometAPI">
+    ```bash
+    LLM_PROVIDER='cometapi'
+    COMETAPI_LLM_API_KEY='...'
+    COMETAPI_LLM_MODEL_PREF='gpt-5-mini'
+    # Optional — stream idle timeout in ms (minimum 500):
+    # COMETAPI_LLM_TIMEOUT_MS=500
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Generic / Compatible Providers
+
+Use these when you have any OpenAI-compatible endpoint that doesn't have its own named connector, or when routing through an aggregation layer.
+
+<AccordionGroup>
+  <Accordion title="Generic OpenAI (any OpenAI-compatible endpoint)">
+    ```bash
+    LLM_PROVIDER='generic-openai'
+    GENERIC_OPEN_AI_BASE_PATH='http://proxy.url.openai.com/v1'
+    GENERIC_OPEN_AI_MODEL_PREF='gpt-3.5-turbo'
+    GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT=4096
+    GENERIC_OPEN_AI_API_KEY=sk-123abc
+    # Optional — inject custom HTTP headers (useful for auth proxies):
+    # GENERIC_OPEN_AI_CUSTOM_HEADERS="X-Custom-Auth:my-secret-key,X-Custom-Header:my-value"
+    ```
+
+    This is the most flexible option. Any server that speaks the OpenAI Chat Completions API — vLLM, TGI, Aphrodite, etc. — works here.
+  </Accordion>
+
+  <Accordion title="LiteLLM">
+    LiteLLM acts as a universal proxy, translating dozens of provider APIs into a single OpenAI-compatible interface.
+
+    ```bash
+    LLM_PROVIDER='litellm'
+    LITE_LLM_MODEL_PREF='gpt-3.5-turbo'
+    LITE_LLM_MODEL_TOKEN_LIMIT=4096
+    LITE_LLM_BASE_PATH='http://127.0.0.1:4000'
+    LITE_LLM_API_KEY='sk-123abc'
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Provider Quick-Reference
+
+| Provider key | Category | Auth variable |
+|---|---|---|
+| `openai` | Cloud | `OPEN_AI_KEY` |
+| `anthropic` | Cloud | `ANTHROPIC_API_KEY` |
+| `gemini` | Cloud | `GEMINI_API_KEY` |
+| `azure` | Cloud | `AZURE_OPENAI_KEY` |
+| `bedrock` | Cloud | `AWS_BEDROCK_API_KEY` |
+| `mistral` | Cloud | `MISTRAL_API_KEY` |
+| `groq` | Cloud | `GROQ_API_KEY` |
+| `cohere` | Cloud | `COHERE_API_KEY` |
+| `perplexity` | Cloud | `PERPLEXITY_API_KEY` |
+| `togetherai` | Cloud | `TOGETHER_AI_API_KEY` |
+| `fireworksai` | Cloud | `FIREWORKS_AI_LLM_API_KEY` |
+| `openrouter` | Cloud | `OPENROUTER_API_KEY` |
+| `deepseek` | Cloud | `DEEPSEEK_API_KEY` |
+| `xai` | Cloud | `XAI_LLM_API_KEY` |
+| `novita` | Cloud | `NOVITA_LLM_API_KEY` |
+| `sambanova` | Cloud | `SAMBANOVA_LLM_API_KEY` |
+| `cerebras` | Cloud | `CEREBRAS_API_KEY` |
+| `minimax` | Cloud | `MINIMAX_API_KEY` |
+| `moonshotai` | Cloud | `MOONSHOT_AI_API_KEY` |
+| `zai` | Cloud | `ZAI_API_KEY` |
+| `ppio` | Cloud | `PPIO_API_KEY` |
+| `apipie` | Cloud | `APIPIE_LLM_API_KEY` |
+| `cometapi` | Cloud | `COMETAPI_LLM_API_KEY` |
+| `giteeai` | Cloud | `GITEE_AI_API_KEY` |
+| `ollama` | Local | *(none required)* |
+| `lmstudio` | Local | *(none required)* |
+| `localai` | Local | `LOCAL_AI_API_KEY` |
+| `koboldcpp` | Local | *(none required)* |
+| `textgenwebui` | Local | `TEXT_GEN_WEB_UI_API_KEY` |
+| `nvidia-nim` | Local | *(none required)* |
+| `docker-model-runner` | Local | *(none required)* |
+| `lemonade` | Local | `LEMONADE_LLM_API_KEY` |
+| `foundry` | Local | *(none required)* |
+| `privatemode` | Local | *(none required)* |
+| `generic-openai` | Generic | `GENERIC_OPEN_AI_API_KEY` |
+| `litellm` | Generic | `LITE_LLM_API_KEY` |
+
+<Note>
+  The `LLM_PROVIDER` value set via environment variables takes precedence over any selection stored in the database. If you want the UI to control the provider, remove `LLM_PROVIDER` from your `.env` file.
+</Note>

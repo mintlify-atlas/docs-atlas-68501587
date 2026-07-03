@@ -1,0 +1,166 @@
+---
+title: "No-Code Agent Flows for Automated Workflows"
+sidebarTitle: "Agent Flows"
+description: "Build multi-step automated workflows in AnythingLLM using the no-code Agent Flows builder. Chain LLM calls, API requests, and web scraping without writing code."
+---
+
+Agent Flows is AnythingLLM's no-code workflow builder that lets you chain multiple processing steps into a single, reusable automation. Instead of a single LLM turn, a flow executes a sequence of typed **nodes** — LLM instructions, HTTP API calls, and web scraping operations — passing data between steps through named variables. The finished flow is registered as an agent tool, so any active agent can invoke it automatically when the user's query matches the flow's description.
+
+<Note>
+  Agent Flows require a configured LLM provider. Each flow can contain one or more `LLM Instruction` nodes, each of which calls the workspace's active LLM with a specific instruction string.
+</Note>
+
+## Flow Storage
+
+Flows are stored as JSON files in the server's storage directory:
+
+```
+{STORAGE_DIR}/plugins/agent-flows/{uuid}.json
+```
+
+Each file contains the flow's name, description, active status, and an ordered array of step configurations. The `AgentFlows` class manages all CRUD operations and validates that every step type is supported before saving.
+
+## Available Node Types
+
+<AccordionGroup>
+  <Accordion title="Start — Initialize Variables">
+    **Type:** `start`
+
+    Every flow begins with a Start node. It declares the **input variables** the flow accepts — named, typed parameters that other nodes can reference using variable interpolation. Variables defined here become the function parameters exposed to the agent when it invokes the flow.
+
+    ```json
+    {
+      "type": "start",
+      "config": {
+        "variables": [
+          { "name": "topic", "description": "The topic to research" },
+          { "name": "format", "description": "Desired output format" }
+        ]
+      }
+    }
+    ```
+  </Accordion>
+  <Accordion title="LLM Instruction — Process with AI">
+    **Type:** `llmInstruction`
+
+    Sends a prompt to the configured LLM and stores the response in a named variable. The instruction string can reference variables from earlier nodes. The executor uses the workspace's default provider and model, supporting both streaming and non-streaming completion modes.
+
+    ```json
+    {
+      "type": "llmInstruction",
+      "config": {
+        "instruction": "Summarize the following content in three bullet points: {{scraped_content}}",
+        "resultVariable": "summary"
+      }
+    }
+    ```
+
+    The LLM instruction node automatically falls back to non-streaming mode for providers that do not support agent streaming.
+  </Accordion>
+  <Accordion title="API Call — Make HTTP Requests">
+    **Type:** `apiCall`
+
+    Makes an outbound HTTP request to any URL and stores the response. Supports all common HTTP methods and body types.
+
+    **Parameters:**
+
+    | Parameter | Type | Description |
+    |---|---|---|
+    | `url` | `string` | The endpoint to call. |
+    | `method` | `string` | HTTP verb: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`. |
+    | `headers` | `array` | Key-value pairs added to the request headers. |
+    | `bodyType` | `string` | `json`, `form`, or `text`. |
+    | `body` | `string` | Request body (for `POST`/`PUT`/`PATCH`). JSON bodies must be valid JSON. |
+    | `formData` | `array` | Key-value pairs for `form`-encoded bodies. |
+    | `responseVariable` | `string` | Variable to store the response data. |
+    | `directOutput` | `boolean` | Return the raw API response to the user without further LLM processing. |
+
+    ```json
+    {
+      "type": "apiCall",
+      "config": {
+        "url": "https://api.example.com/report",
+        "method": "POST",
+        "headers": [{ "key": "Authorization", "value": "Bearer {{api_token}}" }],
+        "bodyType": "json",
+        "body": "{\"topic\": \"{{topic}}\"}",
+        "responseVariable": "report_data"
+      }
+    }
+    ```
+  </Accordion>
+  <Accordion title="Web Scraping — Extract Page Content">
+    **Type:** `webScraping`
+
+    Fetches the text content of a URL and stores it in a variable. Supports plain text capture, full HTML capture, and CSS querySelector–based extraction. If the scraped content exceeds the model's context window, it is automatically summarized before being stored.
+
+    **Parameters:**
+
+    | Parameter | Type | Description |
+    |---|---|---|
+    | `url` | `string` | The URL to scrape. |
+    | `captureAs` | `string` | `text` (default), `html`, or `querySelector`. |
+    | `querySelector` | `string` | CSS selector string (only used when `captureAs` is `querySelector`). |
+    | `enableSummarization` | `boolean` | Auto-summarize oversized content (default `true`). |
+    | `resultVariable` | `string` | Variable to store the scraped content. |
+    | `directOutput` | `boolean` | Return the raw scraped content to the user without further processing. |
+
+    ```json
+    {
+      "type": "webScraping",
+      "config": {
+        "url": "https://news.ycombinator.com",
+        "captureAs": "text",
+        "resultVariable": "hn_content"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Creating a Flow
+
+<Steps>
+  <Step title="Open the Agent Flows Builder">
+    Navigate to **System Settings → Agent Flows** and click **New Flow**. Give the flow a name and an optional description — the description becomes the tool description the agent uses when deciding whether to invoke the flow.
+  </Step>
+  <Step title="Add a Start Node">
+    Every flow must begin with a Start node. Define any input variables your flow needs. Variable names become the function parameters that the agent fills in when calling the flow.
+  </Step>
+  <Step title="Add Processing Nodes">
+    Click **+** to add nodes after the Start node. Chain them in order: for example, a Web Scraping node to fetch a page, followed by an LLM Instruction node to summarize it, followed by an API Call node to post the summary to a webhook.
+  </Step>
+  <Step title="Configure Direct Output (Optional)">
+    On any API Call or Web Scraping node, enable **Direct Output** to return that node's result straight to the user without passing it through another LLM. This is useful when the raw API response or scraped text is the desired answer.
+  </Step>
+  <Step title="Save and Activate">
+    Save the flow. AnythingLLM validates that all node types are supported on the current platform before writing the file. Saved flows are automatically marked as active and immediately available as agent tools.
+  </Step>
+</Steps>
+
+## How Flows Run as Agent Tools
+
+When a flow is saved and active, `AgentFlows.activeFlowPlugins()` returns it as a plugin identifier in the format `@@flow_{uuid}`. At agent startup, each active flow is loaded as a callable tool with:
+
+- **Tool name:** The flow's human-readable name, sanitized to match the pattern `^[a-zA-Z0-9_-]{1,64}$` (spaces become underscores; special characters are removed).
+- **Description:** The flow's `description` field, used by the LLM to decide when to invoke the flow.
+- **Parameters:** One string parameter per variable declared in the Start node.
+
+The flow executor runs nodes sequentially, passing data between steps. If any node fails, the executor reports the error back to the agent and the flow stops.
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Automated Research Reports" icon="magnifying-glass">
+    Scrape a set of URLs, summarize each with an LLM Instruction node, then post the combined report to a Slack webhook or email API.
+  </Card>
+  <Card title="Data Extraction Pipelines" icon="table">
+    Call a REST API to retrieve raw data, pass it through an LLM Instruction node to extract structured fields, and store the result.
+  </Card>
+  <Card title="Content Monitoring" icon="bell">
+    Scrape a news page or status dashboard on demand, compare the content to a known baseline using an LLM node, and trigger an alert API call if something has changed.
+  </Card>
+  <Card title="Workflow Glue Code" icon="link">
+    Chain together multiple internal or external API calls with LLM transformations in between — without writing a single line of code.
+  </Card>
+</CardGroup>

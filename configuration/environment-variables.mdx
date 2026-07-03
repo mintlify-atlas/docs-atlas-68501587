@@ -1,0 +1,361 @@
+---
+title: "AnythingLLM Environment Variable Reference"
+sidebarTitle: "Environment Variables"
+description: "Complete reference for all AnythingLLM environment variables covering server, LLM providers, vector databases, agents, and security settings."
+---
+
+AnythingLLM is configured entirely through environment variables, making it straightforward to deploy and manage in any environment — Docker, bare-metal, or cloud. The canonical template lives at `docker/.env.example` in the repository. Copy it to `docker/.env`, uncomment the variables you need, and restart the container to apply changes. Most variables are optional and fall back to sensible defaults; only the ones relevant to your chosen LLM provider, embedding engine, and vector database are required.
+
+<Note>
+  Changes to environment variables require a container (or process) restart before they take effect. The `.env` file is read once at startup.
+</Note>
+
+## Core Server
+
+<AccordionGroup>
+  <Accordion title="Server & Storage">
+    <ParamField path="SERVER_PORT" type="number" default="3001">
+      The port the AnythingLLM API server listens on inside the container.
+    </ParamField>
+
+    <ParamField path="STORAGE_DIR" type="string" default="/app/server/storage">
+      Absolute path to the persistent storage directory where workspaces, uploaded documents, and the built-in vector database are written. Mount this path as a Docker volume to persist data across container restarts.
+    </ParamField>
+
+    <ParamField path="UID" type="string" default="1000">
+      Unix user ID that the container process runs as. Adjust to match the owner of your mounted storage volume.
+    </ParamField>
+
+    <ParamField path="GID" type="string" default="1000">
+      Unix group ID that the container process runs as.
+    </ParamField>
+
+    <ParamField path="COLLECTOR_PORT" type="number" default="8888">
+      Port that the document collector micro-service listens on. Only change this if the default conflicts with another service.
+    </ParamField>
+
+    <ParamField path="COLLECTOR_ALLOW_ANY_IP" type="string">
+      Set to `"true"` to allow the collector to scrape content from private / local IP addresses (e.g., `192.168.x.x`). Disabled by default for security.
+    </ParamField>
+  </Accordion>
+
+  <Accordion title="Session Security (JWT / Signatures)">
+    <ParamField path="JWT_SECRET" type="string" required>
+      A random string (≥ 12 chars) used to sign session tokens. **Required when `AUTH_TOKEN` is set.** Generate with `openssl rand -hex 32`.
+    </ParamField>
+
+    <ParamField path="JWT_EXPIRY" type="string" default="30d">
+      How long a login session token remains valid. Accepts the [ms](https://github.com/vercel/ms) format — e.g., `"30d"`, `"12h"`, `"7d"`.
+    </ParamField>
+
+    <ParamField path="SIG_KEY" type="string">
+      Passphrase used to sign sensitive payloads. Generate a random string of at least 32 characters.
+    </ParamField>
+
+    <ParamField path="SIG_SALT" type="string">
+      Salt combined with `SIG_KEY` for payload signing. Generate a random string of at least 32 characters.
+    </ParamField>
+  </Accordion>
+</AccordionGroup>
+
+## Authentication
+
+<AccordionGroup>
+  <Accordion title="Single-password Auth">
+    <ParamField path="AUTH_TOKEN" type="string">
+      A global password that protects the entire AnythingLLM instance. When set, every API request and UI login requires this value. Recommended for any internet-facing deployment.
+    </ParamField>
+  </Accordion>
+
+  <Accordion title="Simple SSO Passthrough">
+    <ParamField path="SIMPLE_SSO_ENABLED" type="string">
+      Set to `1` to enable the Simple SSO passthrough, which lets a trusted upstream service pre-authenticate users and inject a signed token into the AnythingLLM session.
+    </ParamField>
+
+    <ParamField path="SIMPLE_SSO_NO_LOGIN" type="string">
+      Set to `1` to skip the AnythingLLM login screen entirely, relying on the upstream SSO provider for authentication.
+    </ParamField>
+
+    <ParamField path="SIMPLE_SSO_NO_LOGIN_REDIRECT" type="string">
+      Optional URL to redirect unauthenticated users to when `SIMPLE_SSO_NO_LOGIN` is enabled — e.g., `https://your-custom-login-url.com`.
+    </ParamField>
+  </Accordion>
+
+  <Accordion title="Password Complexity Rules">
+    These variables enforce a password policy for multi-user mode. All are optional; the default is an 8-character minimum.
+
+    | Variable | Purpose |
+    |---|---|
+    | `PASSWORDMINCHAR` | Minimum password length (default `8`) |
+    | `PASSWORDMAXCHAR` | Maximum password length (default `250`) |
+    | `PASSWORDLOWERCASE` | Minimum number of lowercase letters |
+    | `PASSWORDUPPERCASE` | Minimum number of uppercase letters |
+    | `PASSWORDNUMERIC` | Minimum number of digits |
+    | `PASSWORDSYMBOL` | Minimum number of symbols |
+    | `PASSWORDREQUIREMENTS` | Minimum number of the above rules that must be satisfied |
+  </Accordion>
+</AccordionGroup>
+
+## LLM Selection
+
+<AccordionGroup>
+  <Accordion title="LLM_PROVIDER and provider keys">
+    <ParamField path="LLM_PROVIDER" type="string" default="openai">
+      Selects which LLM backend AnythingLLM uses. Must match one of the supported provider identifiers. See [LLM Providers](/configuration/llm-providers) for the full list.
+
+      Common values: `openai`, `anthropic`, `gemini`, `azure`, `ollama`, `lmstudio`, `localai`, `mistral`, `groq`, `cohere`, `bedrock`, `togetherai`, `openrouter`, `perplexity`, `fireworksai`, `deepseek`, `xai`, `novita`, `sambanova`, `nvidia-nim`, `litellm`, `generic-openai`, and more.
+    </ParamField>
+
+    A few examples of the provider-specific keys that accompany `LLM_PROVIDER`:
+
+    | Provider | Required keys |
+    |---|---|
+    | `openai` | `OPEN_AI_KEY`, `OPEN_MODEL_PREF` |
+    | `anthropic` | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL_PREF` |
+    | `gemini` | `GEMINI_API_KEY`, `GEMINI_LLM_MODEL_PREF` |
+    | `ollama` | `OLLAMA_BASE_PATH`, `OLLAMA_MODEL_PREF` |
+    | `azure` | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY`, `AZURE_OPENAI_MODEL_PREF` |
+    | `groq` | `GROQ_API_KEY`, `GROQ_MODEL_PREF` |
+    | `mistral` | `MISTRAL_API_KEY`, `MISTRAL_MODEL_PREF` |
+    | `bedrock` | `AWS_BEDROCK_LLM_REGION`, `AWS_BEDROCK_API_KEY`, `AWS_BEDROCK_LLM_MODEL_PREFERENCE` |
+
+    See [LLM Providers](/configuration/llm-providers) for all supported providers and their full variable lists.
+  </Accordion>
+</AccordionGroup>
+
+## Embedding
+
+<AccordionGroup>
+  <Accordion title="Embedding engine variables">
+    <ParamField path="EMBEDDING_ENGINE" type="string" default="native">
+      Selects the embedding engine. Valid values include `native`, `openai`, `azure`, `ollama`, `lmstudio`, `localai`, `cohere`, `voyageai`, `gemini`, `mistral`, `openrouter`, `lemonade`, `litellm`, `generic-openai`.
+    </ParamField>
+
+    <ParamField path="EMBEDDING_MODEL_PREF" type="string">
+      The specific model to use for embeddings. Defaults vary by engine — e.g., `Xenova/all-MiniLM-L6-v2` for native, `text-embedding-ada-002` for OpenAI.
+    </ParamField>
+
+    <ParamField path="EMBEDDING_MODEL_MAX_CHUNK_LENGTH" type="number">
+      Maximum character length of a single text chunk passed to the embedding model. Tune this to match the model's token limit. For example, `8192` is typical for Ollama embedding models.
+    </ParamField>
+
+    <ParamField path="EMBEDDING_BASE_PATH" type="string">
+      Base URL for self-hosted embedding engines such as Ollama, LM Studio, LocalAI, Lemonade, or Generic OpenAI. Example: `http://host.docker.internal:11434`.
+    </ParamField>
+
+    See [Embedding Models](/configuration/embedding-models) for per-engine variable details.
+  </Accordion>
+</AccordionGroup>
+
+## Vector Database
+
+<AccordionGroup>
+  <Accordion title="Vector DB selection and connection">
+    <ParamField path="VECTOR_DB" type="string" default="lancedb">
+      Selects the vector database backend. Valid values: `lancedb`, `chroma`, `chromacloud`, `pinecone`, `weaviate`, `qdrant`, `milvus`, `zilliz`, `pgvector`, `astra`.
+    </ParamField>
+
+    Each provider requires its own connection variables. See [Vector Databases](/configuration/vector-databases) for the full breakdown.
+
+    | Provider | Key variables |
+    |---|---|
+    | `lancedb` | *(none — built-in)* |
+    | `chroma` | `CHROMA_ENDPOINT`, `CHROMA_API_HEADER`, `CHROMA_API_KEY` |
+    | `pinecone` | `PINECONE_API_KEY`, `PINECONE_INDEX` |
+    | `qdrant` | `QDRANT_ENDPOINT`, `QDRANT_API_KEY` |
+    | `weaviate` | `WEAVIATE_ENDPOINT`, `WEAVIATE_API_KEY` |
+    | `pgvector` | `PGVECTOR_CONNECTION_STRING` |
+    | `milvus` | `MILVUS_ADDRESS`, `MILVUS_USERNAME`, `MILVUS_PASSWORD` |
+  </Accordion>
+</AccordionGroup>
+
+## Agent Service Keys
+
+<AccordionGroup>
+  <Accordion title="Search engine integrations">
+    Agents can be equipped with web-search tools. Set the relevant API key for the search engine you want to use.
+
+    | Variable | Search provider |
+    |---|---|
+    | `AGENT_GSE_KEY` + `AGENT_GSE_CTX` | Google Programmable Search |
+    | `AGENT_SEARCHAPI_API_KEY` | SearchApi.io |
+    | `AGENT_SERPAPI_API_KEY` | SerpApi |
+    | `AGENT_SERPER_DEV_KEY` | Serper.dev |
+    | `AGENT_BING_SEARCH_API_KEY` | Bing Search (Azure) |
+    | `AGENT_BAIDU_SEARCH_API_KEY` | Baidu Search |
+    | `AGENT_SERPLY_API_KEY` | Serply.io |
+    | `AGENT_SEARXNG_API_URL` | SearXNG (self-hosted) |
+    | `AGENT_TAVILY_API_KEY` | Tavily |
+    | `AGENT_EXA_API_KEY` | Exa Search |
+    | `AGENT_PERPLEXITY_API_KEY` | Perplexity Search |
+    | `AGENT_CRW_API_KEY` + `AGENT_CRW_API_URL` | fastCRW |
+  </Accordion>
+
+  <Accordion title="Agent behaviour tuning">
+    <ParamField path="AGENT_MAX_TOOL_CALLS" type="number" default="10">
+      Maximum number of tool calls an agent may chain within a single response. Prevents runaway recursive calls on lower-capability models.
+    </ParamField>
+
+    <ParamField path="AGENT_SKILL_RERANKER_ENABLED" type="string" default="true">
+      When `"true"` (default), uses the native embedding reranker to select only the most relevant tools for each query — reducing token usage by up to 80 % when many tools or MCP servers are enabled. Set to `"false"` to disable.
+    </ParamField>
+
+    <ParamField path="AGENT_SKILL_RERANKER_TOP_N" type="number" default="15">
+      Number of top-ranked tools retained after reranking.
+    </ParamField>
+
+    <ParamField path="AGENT_AUTO_APPROVED_SKILLS" type="string">
+      Comma-separated list of skill names that are auto-approved and run without user confirmation. Example: `create-pdf-file,create-word-file`.
+    </ParamField>
+
+    <ParamField path="PROVIDER_DISABLE_NATIVE_TOOL_CALLING" type="string">
+      Comma-separated list of provider names that should fall back to prompt-based (UnTooled) tool calling instead of native function calling. Example: `generic-openai,litellm`.
+    </ParamField>
+  </Accordion>
+</AccordionGroup>
+
+## Audio / TTS / STT
+
+<AccordionGroup>
+  <Accordion title="Whisper / Speech-to-Text">
+    <ParamField path="WHISPER_PROVIDER" type="string" default="local">
+      Transcription provider. `"local"` uses a bundled Whisper small model. `"openai"` delegates to the OpenAI hosted Whisper API (requires `OPEN_AI_KEY`).
+    </ParamField>
+
+    <ParamField path="STT_PROVIDER" type="string" default="native">
+      Server-side speech-to-text provider for the chat UI microphone input. Options: `native`, `openai`, `lemonade`, `deepgram`, `generic-openai`, `groq`.
+    </ParamField>
+  </Accordion>
+
+  <Accordion title="Text-to-Speech">
+    <ParamField path="TTS_PROVIDER" type="string" default="native">
+      Text-to-speech provider for voice responses. Options: `native`, `openai`, `generic-openai`, `elevenlabs`, `kokoro`.
+    </ParamField>
+
+    Provider-specific TTS variables follow the pattern `TTS_<PROVIDER>_*`. For example, `TTS_OPEN_AI_KEY`, `TTS_OPEN_AI_VOICE_MODEL`, `TTS_ELEVEN_LABS_KEY`, `TTS_ELEVEN_LABS_VOICE_MODEL`.
+  </Accordion>
+</AccordionGroup>
+
+## Other Settings
+
+<AccordionGroup>
+  <Accordion title="UI & API behaviour">
+    <ParamField path="DISABLE_SWAGGER_DOCS" type="string">
+      Set to `"true"` to disable the `/api/docs` Swagger endpoint. Recommended in production to reduce attack surface.
+    </ParamField>
+
+    <ParamField path="DISABLE_VIEW_CHAT_HISTORY" type="string">
+      Set to `1` to prevent users from viewing historical chat sessions in the UI and through the frontend APIs.
+    </ParamField>
+
+    <ParamField path="WORKSPACE_DELETION_PROTECTION" type="string">
+      Set to any non-empty value to block workspace deletion from the UI and APIs.
+    </ParamField>
+
+    <ParamField path="EMBED_REQUIRE_ALLOWLIST" type="string">
+      Set to `"true"` so that public embed widgets with no domain allowlist configured reject all requests instead of answering from any origin.
+    </ParamField>
+
+    <ParamField path="MCP_NO_COOLDOWN" type="string">
+      Set to `"true"` to disable the built-in cooldown timer between MCP tool invocations. Use with caution — this can cause infinite recursive calls with some model/provider combinations.
+    </ParamField>
+  </Accordion>
+
+  <Accordion title="HTTPS / TLS">
+    <ParamField path="ENABLE_HTTPS" type="string">
+      Set to `"true"` to run the server over HTTPS using the certificate and key paths below.
+    </ParamField>
+
+    <ParamField path="HTTPS_CERT_PATH" type="string">
+      Relative or absolute path to the TLS certificate PEM file. Example: `sslcert/cert.pem`.
+    </ParamField>
+
+    <ParamField path="HTTPS_KEY_PATH" type="string">
+      Relative or absolute path to the TLS private key PEM file. Example: `sslcert/key.pem`.
+    </ParamField>
+  </Accordion>
+
+  <Accordion title="Scheduled jobs & document sync">
+    <ParamField path="SCHEDULED_JOB_MAX_CONCURRENT" type="number" default="1">
+      Maximum number of scheduled background jobs that may run concurrently. Increase when using a cloud LLM with high rate limits.
+    </ParamField>
+
+    <ParamField path="SCHEDULED_JOB_TIMEOUT_MS" type="number" default="300000">
+      Maximum time in milliseconds a scheduled job can run before it is terminated (default 5 minutes).
+    </ParamField>
+
+    <ParamField path="DOCUMENT_SYNC_STALE_AFTER_MS" type="number" default="604800000">
+      How long (in milliseconds) a watched document waits before the sync worker re-processes it. Default is 7 days; minimum is 1 hour (3 600 000 ms).
+    </ParamField>
+
+    <ParamField path="MEMORY_EXTRACTION_INTERVAL" type="string" default="15m">
+      How often the memory-extraction background job runs. Accepts `ms` format strings such as `15m` or `1h`.
+    </ParamField>
+
+    <ParamField path="MEMORY_IDLE_THRESHOLD_MS" type="number" default="1200000">
+      Minimum milliseconds of chat inactivity before the memory-extraction job fires. Set to `0` to disable the idle check.
+    </ParamField>
+  </Accordion>
+
+  <Accordion title="OCR & Chromium">
+    <ParamField path="TARGET_OCR_LANG" type="string" default="eng">
+      Comma-separated Tesseract language codes used when parsing images and scanned PDFs. Example: `eng,deu,fra`. See the [Tesseract data-files list](https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html) for valid codes.
+    </ParamField>
+
+    <ParamField path="ANYTHINGLLM_CHROMIUM_ARGS" type="string">
+      Extra Chromium launch flags for the built-in Puppeteer instance. Required on some Linux Docker hosts that cannot grant `SYS_ADMIN` capability. Example: `--no-sandbox,--disable-setuid-sandbox`.
+    </ParamField>
+  </Accordion>
+</AccordionGroup>
+
+## Full .env Example
+
+The snippet below reproduces the most commonly needed variables in one place. Copy it as a starting point and uncomment only the sections relevant to your deployment.
+
+```bash
+# ── Core ──────────────────────────────────────────────────────────────────────
+SERVER_PORT=3001
+STORAGE_DIR="/app/server/storage"
+UID='1000'
+GID='1000'
+
+# SIG_KEY='passphrase'        # ≥ 32 chars, required for payload signing
+# SIG_SALT='salt'             # ≥ 32 chars
+# JWT_SECRET="my-random-str"  # ≥ 12 chars, required when AUTH_TOKEN is set
+# JWT_EXPIRY="30d"
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+# AUTH_TOKEN="hunter2"          # Password for remote/cloud deployments
+
+# ── LLM Provider ─────────────────────────────────────────────────────────────
+# LLM_PROVIDER='openai'
+# OPEN_AI_KEY=sk-...
+# OPEN_MODEL_PREF='gpt-4o'
+
+# LLM_PROVIDER='anthropic'
+# ANTHROPIC_API_KEY=sk-ant-...
+# ANTHROPIC_MODEL_PREF='claude-sonnet-4-6'
+
+# LLM_PROVIDER='ollama'
+# OLLAMA_BASE_PATH='http://host.docker.internal:11434'
+# OLLAMA_MODEL_PREF='llama3'
+# OLLAMA_MODEL_TOKEN_LIMIT=4096
+
+# ── Embedding ─────────────────────────────────────────────────────────────────
+# EMBEDDING_ENGINE='native'
+# EMBEDDING_MODEL_PREF='Xenova/all-MiniLM-L6-v2'
+
+# ── Vector Database ───────────────────────────────────────────────────────────
+# VECTOR_DB="lancedb"           # Default — no further config needed
+
+# ── Agents ────────────────────────────────────────────────────────────────────
+# AGENT_EXA_API_KEY=
+# AGENT_TAVILY_API_KEY=
+# AGENT_MAX_TOOL_CALLS=10
+# AGENT_SKILL_RERANKER_ENABLED="true"
+
+# ── Security / Hardening ──────────────────────────────────────────────────────
+# DISABLE_SWAGGER_DOCS="true"
+# WORKSPACE_DELETION_PROTECTION=1
+# EMBED_REQUIRE_ALLOWLIST="true"
+```
